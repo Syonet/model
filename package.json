@@ -16,6 +16,7 @@
         "karma-mocha": "^0.1.10",
         "karma-chai-sinon": "^0.1.4"
     },
+    "license": "MIT",
     "scripts": {
         "test": "gulp"
     }
