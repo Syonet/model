@@ -1,0 +1,10 @@
+{
+    "browser": true,
+    "node": true,
+    "predef": [ "_", "angular" ],
+
+    "expr": true,
+    "globalstrict": true,
+    "newcap": false,
+    "validthis": true
+}

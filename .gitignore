@@ -1,0 +1,8 @@
+# IntelliJ
+/.idea
+*.iml
+
+# Node.js and Bower
+/libs
+/node_modules
+npm-debug.log
