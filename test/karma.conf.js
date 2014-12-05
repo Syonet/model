@@ -28,4 +28,10 @@ module.exports = function ( config ) {
             "PhantomJS"
         ]
     });
+
+    // Special case for Travis CI
+    if ( process.env.TRAVIS ) {
+        config.transports = [ "xhr-polling" ];
+        config.browsers = [ "PhantomJS" ];
+    }
 };
