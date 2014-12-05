@@ -15,5 +15,8 @@
         "karma-phantomjs-launcher": "^0.1.4",
         "karma-mocha": "^0.1.10",
         "karma-chai-sinon": "^0.1.4"
+    },
+    "scripts": {
+        "test": "gulp"
     }
 }
