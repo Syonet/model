@@ -11,7 +11,6 @@ var karma =      require( "karma" );
 
 var IS_WATCHING = false;
 var SRC_FILES =  [ "src/module.js", "src/**/*.js" ];
-var TEST_FILES = [ "test/**/*.js" ];
 
 gulp.task( "test", [ "package" ], function ( cb ) {
     karma.server.start({
@@ -35,10 +34,6 @@ gulp.task( "watch", function () {
 
     watch( SRC_FILES, function ( files, cb ) {
         gulp.start( "package", cb );
-    });
-
-    watch( TEST_FILES, function ( files, cb ) {
-        gulp.start( "test", cb );
     });
 });
 
