@@ -3,6 +3,8 @@
     "node": true,
     "predef": [ "_", "angular" ],
 
+    "eqeqeq": true,
+    "eqnull": true,
     "expr": true,
     "globalstrict": true,
     "newcap": false,
