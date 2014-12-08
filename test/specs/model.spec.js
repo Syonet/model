@@ -30,6 +30,10 @@ describe( "Model", function () {
         $httpBackend.verifyNoOutstandingRequest( false );
     });
 
+    afterEach(function () {
+        return model( "foo" )._db.destroy();
+    });
+
     it( "should be created with provided path", function () {
         var foo = model( "foo" );
 
@@ -132,14 +136,12 @@ describe( "Model", function () {
         });
 
         it( "should return the current revision when found", function () {
-            var rev, foo;
-            var promise = model( "foo" )._db.destroy().then(function () {
-                foo = model( "foo" );
+            var rev;
+            var foo = model( "foo" );
 
-                return foo._db.put({
-                    foo: "bar"
-                }, "bar" );
-            }).then(function ( doc ) {
+            var promise = foo._db.put({
+                foo: "bar"
+            }, "bar" ).then(function ( doc ) {
                 rev = doc.rev;
                 return foo.id( "bar" ).rev();
             }).then(function ( rev2 ) {
