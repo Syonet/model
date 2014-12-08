@@ -6,8 +6,6 @@ describe( "Model", function () {
 
     beforeEach( module( "syonet.model" ) );
     beforeEach( inject(function ( $injector ) {
-        var $timeout = $injector.get( "$timeout" );
-
         $rootScope = $injector.get( "$rootScope" );
         $httpBackend = $injector.get( "$httpBackend" );
         model = $injector.get( "model" );
