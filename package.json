@@ -1,6 +1,7 @@
 {
     "name": "syonet.model",
     "version": "0.0.1",
+    "repository": "syonet/model",
     "dependencies": {},
     "devDependencies": {
         "gulp": "^3.8.10",
@@ -14,7 +15,7 @@
         "karma-chrome-launcher": "^0.1.7",
         "karma-phantomjs-launcher": "^0.1.4",
         "karma-mocha": "^0.1.10",
-        "karma-chai-sinon": "^0.1.4"
+        "karma-chai-plugins": "^0.2.4"
     },
     "license": "MIT",
     "scripts": {

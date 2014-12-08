@@ -3,7 +3,7 @@ module.exports = function ( config ) {
 
     config.set({
         basePath: "..",
-        frameworks: [ "mocha", "chai-sinon" ],
+        frameworks: [ "mocha", "chai", "chai-as-promised" ],
         files: [
             "test/function.bind.js",
 
