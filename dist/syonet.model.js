@@ -11,13 +11,9 @@
     angular.module( "syonet.model" ).provider( "model", modelProvider );
 
     function modelProvider () {
+        var auth;
+        var baseUrl = "/";
         var provider = this;
-
-        /**
-         * Base URL for the RESTful API we'll be talking to
-         * @type    {String}
-         */
-        provider.base = "/";
 
         /**
          * PouchDB database name prefix
@@ -31,9 +27,38 @@
          */
         provider.idFieldHeader = "X-Id-Field";
 
-        provider.$get = function ( $window, $q, $http, PouchDB ) {
-            var auth;
+        /**
+         * Get/set the username and password used for authentication.
+         *
+         * @param   {String} [username]
+         * @param   {String} [password]
+         */
+        provider.auth = function ( username, password ) {
+            if ( !username ) {
+                return auth;
+            }
 
+            auth = {
+                username: username,
+                password: password
+            };
+        };
+
+        /**
+         * Get/set base URL for the RESTful API we'll be talking to
+         *
+         * @param   {String} [base]
+         */
+        provider.base = function ( base ) {
+            if ( base == null ) {
+                return baseUrl;
+            }
+
+            baseUrl = base;
+            return baseUrl;
+        };
+
+        provider.$get = function ( $window, $q, $http, PouchDB ) {
             /**
              * @param   {Model} model
              * @param   {String} method
@@ -43,7 +68,7 @@
             function createRequest ( model, method, data ) {
                 var config = {
                     method: method,
-                    url: ( provider.base + model.toURL() ).replace( /\/\//g, "/" ),
+                    url: ( provider.base() + model.toURL() ).replace( /\/\//g, "/" ),
                     data: data,
                     headers: {}
                 };
@@ -121,6 +146,7 @@
              */
             function putAuthenticationHeader ( config ) {
                 var password, base64;
+                var auth = provider.auth();
 
                 if ( !auth || !auth.username ) {
                     return;
@@ -308,19 +334,9 @@
                 });
             };
 
-            /**
-             * Set the username and password used for authentication.
-             *
-             * @static
-             * @param   {String} username
-             * @param   {String} [password]
-             */
-            Model.auth = function ( username, password ) {
-                auth = {
-                    username: username,
-                    password: password
-                };
-            };
+            // Supply provider methods to the service layer
+            Model.auth = provider.auth;
+            Model.base = provider.base;
 
             return Model;
         };
