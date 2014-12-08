@@ -59,17 +59,21 @@ describe( "Model Provider", function () {
 
     // ---------------------------------------------------------------------------------------------
 
-    describe( ".base", function () {
+    describe( ".base()", function () {
         it( "should be used as the base URL for requests", function () {
             var promise;
 
-            provider.base = "/api";
+            provider.base( "/api" );
 
             $httpBackend.expectGET( "/api/foo" ).respond( 200, [] );
             promise = model( "foo" ).get();
             this.flush();
 
             return promise;
+        });
+
+        it( "should return the base URL for requests", function () {
+            expect( provider.base() ).to.equal( "/" );
         });
     });
 });
