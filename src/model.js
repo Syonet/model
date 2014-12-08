@@ -10,7 +10,7 @@
          * Base URL for the RESTful API we'll be talking to
          * @type    {String}
          */
-        provider.apiBasePath = "/api";
+        provider.base = "/";
 
         /**
          * PouchDB database name prefix
@@ -36,7 +36,7 @@
             function createRequest ( model, method, data ) {
                 var config = {
                     method: method,
-                    url: model.toURL(),
+                    url: ( provider.base + model.toURL() ).replace( /\/\//g, "/" ),
                     data: data,
                     headers: {}
                 };
