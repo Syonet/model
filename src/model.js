@@ -61,7 +61,7 @@
             function createRequest ( model, method, data ) {
                 var config = {
                     method: method,
-                    url: ( provider.base() + model.toURL() ).replace( /\/\//g, "/" ),
+                    url: fixDoubleBackslashes( provider.base() + model.toURL() ),
                     data: data,
                     headers: {}
                 };
@@ -275,7 +275,7 @@
                 return createRequest( self, "GET" ).then(function ( data ) {
                     return updateCache( self, data );
                 }, function ( err ) {
-                    return fetchCacheOrThrow( model, err );
+                    return fetchCacheOrThrow( self, err );
                 });
             };
 
@@ -369,6 +369,18 @@
             });
 
             return isArray ? data : data[ 0 ];
+        }
+
+        /**
+         * Remove double backslashes from a URL.
+         *
+         * @param   {String} url
+         * @returns {String}
+         */
+        function fixDoubleBackslashes ( url ) {
+            return url.replace( /\/\//g, function ( match, index ) {
+                return /https?:/.test( url.substr( 0, index ) ) ? match : "/";
+            });
         }
     }
 }();
