@@ -1,6 +1,13 @@
 # Model [![Build Status](https://img.shields.io/travis/Syonet/model.svg?style=flat-square)](https://travis-ci.org/Syonet/model)
 Angular.js RESTful API with fallback to PouchDB when offline.
 
+## Installation
+Install with Bower:
+
+```shell
+$ bower install syonet.model
+```
+
 ## Usage
 Inject `syonet.model` module into your app:
 
