@@ -77,7 +77,7 @@
                 });
 
                 return promise.then(function ( data ) {
-                    if ( !id && !data.rows.length ) {
+                    if ( !id && !data.rows.length && err ) {
                         throw err;
                     }
 
