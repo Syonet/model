@@ -2,6 +2,7 @@
 
 var gulp =       require( "gulp" );
 var concat =     require( "gulp-concat" );
+var coveralls =  require( "gulp-coveralls" );
 var jscs =       require( "gulp-jscs" );
 var jshint =     require( "gulp-jshint" );
 var ngAnnotate = require( "gulp-ng-annotate" );
@@ -17,6 +18,11 @@ gulp.task( "test", [ "package" ], function ( cb ) {
         configFile: __dirname + "/test/karma.conf.js",
         singleRun: !IS_WATCHING
     }, cb );
+});
+
+gulp.task( "coverage", function () {
+    return gulp.src( "test/coverage/*/lcov.info" )
+        .pipe( coveralls() );
 });
 
 gulp.task( "package", function () {
