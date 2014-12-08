@@ -2,8 +2,7 @@
     "name": "syonet.model",
     "dependencies": {
         "angular": "~1.3.0",
-        "angular-pouchdb": "angular-pouchdb/angular-pouchdb",
-        "restangular": "~1.4.0"
+        "angular-pouchdb": "angular-pouchdb/angular-pouchdb"
     },
     "devDependencies": {
         "angular-mocks": "~1.3.0"

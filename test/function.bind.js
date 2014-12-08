@@ -4,9 +4,9 @@
 var proto = Function.prototype;
 if ( !proto.bind ) {
     proto.bind = function () {
-        var args = _.toArray( arguments );
-        args.unshift( this );
+        var args = [].slice.call( arguments );
+        args.splice( 1, 0, this );
 
-        return _.bind.apply( _, args );
+        return angular.bind.apply( null, args );
     };
 }

@@ -8,11 +8,9 @@ module.exports = function ( config ) {
             "test/function.bind.js",
 
             // Production deps
-            "libs/lodash/dist/lodash.js",
             "libs/pouchdb/dist/pouchdb.js",
             "libs/angular/angular.js",
             "libs/angular-pouchdb/angular-pouchdb.js",
-            "libs/restangular/dist/restangular.js",
 
             // Dev deps
             "libs/angular-mocks/angular-mocks.js",
