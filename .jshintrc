@@ -1,7 +1,7 @@
 {
     "browser": true,
     "node": true,
-    "predef": [ "_", "angular" ],
+    "predef": [ "angular" ],
 
     "eqeqeq": true,
     "eqnull": true,
