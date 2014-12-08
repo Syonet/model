@@ -16,7 +16,8 @@ module.exports = function ( config ) {
             "libs/angular-mocks/angular-mocks.js",
 
             // Sources
-            "dist/syonet.model.js",
+            "src/module.js",
+            "src/**/*.js",
 
             // Test specs
             "test/specs/**/*.js"
@@ -24,7 +25,15 @@ module.exports = function ( config ) {
         browsers: [
             "Chrome",
             "PhantomJS"
-        ]
+        ],
+        reporters: [ "progress", "coverage" ],
+        preprocessors: {
+            "src/**/*.js": [ "coverage" ]
+        },
+        coverageReporter: {
+            type: "lcov",
+            dir: "test/coverage/"
+        }
     });
 
     // Special case for Travis CI

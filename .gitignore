@@ -1,3 +1,6 @@
+# Test Coverage output
+/test/coverage
+
 # IntelliJ
 /.idea
 *.iml
