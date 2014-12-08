@@ -5,8 +5,23 @@
 
     function modelProvider () {
         var provider = this;
+
+        /**
+         * Base URL for the RESTful API we'll be talking to
+         * @type    {String}
+         */
         provider.apiBasePath = "/api";
+
+        /**
+         * PouchDB database name prefix
+         * @type    {String}
+         */
         provider.dbNamePrefix = "modelDB";
+
+        /**
+         * The name of the header that contains the ID fields in the response body.
+         * @type    {String}
+         */
         provider.idFieldHeader = "X-Id-Field";
 
         provider.$get = function ( $window, $q, $http, PouchDB ) {
