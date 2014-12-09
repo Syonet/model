@@ -13,6 +13,8 @@
     },
     "ignore": [
         "src",
-        "test"
+        "test",
+        "gulpfile.js",
+        ".*"
     ]
 }
