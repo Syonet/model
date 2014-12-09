@@ -103,7 +103,7 @@ describe( "Model", function () {
             var promise;
 
             $httpBackend.expectGET( "/foo/bar", function ( headers ) {
-                return headers.Authentication === "Basic " + btoa( "foo:bar" );
+                return headers.Authorization === "Basic " + btoa( "foo:bar" );
             }).respond( 200, {
                 foo: "bar"
             });

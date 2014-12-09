@@ -66,7 +66,7 @@
                     headers: {}
                 };
 
-                putAuthenticationHeader( config );
+                putAuthorizationHeader( config );
                 return $http( config ).then( applyIdField, function ( response ) {
                     throw response.data;
                 });
@@ -137,7 +137,7 @@
              *
              * @param   {Object} config
              */
-            function putAuthenticationHeader ( config ) {
+            function putAuthorizationHeader ( config ) {
                 var password, base64;
                 var auth = provider.auth();
 
@@ -147,7 +147,7 @@
 
                 password = auth.password == null ? "" : auth.password;
                 base64 = $window.btoa( auth.username + ":" + password );
-                config.headers.Authentication = "Basic " + base64;
+                config.headers.Authorization = "Basic " + base64;
             }
 
             /**
