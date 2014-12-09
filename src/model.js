@@ -51,7 +51,7 @@
             return baseUrl;
         };
 
-        provider.$get = function ( $window, $q, $http, PouchDB ) {
+        provider.$get = function ( $window, $q, $http, pouchDB ) {
             /**
              * @param   {Model} model
              * @param   {String} method
@@ -164,7 +164,7 @@
                     throw new Error( "Model name must be supplied" );
                 }
 
-                this._db = PouchDB( provider.dbNamePrefix + "." + name );
+                this._db = pouchDB( provider.dbNamePrefix + "." + name );
 
                 this._path = {
                     name: name
