@@ -13,6 +13,7 @@
         "gulp-plumber": "^0.6.6",
         "gulp-watch": "^1.1.0",
         "karma": "^0.12.18",
+        "karma-chai-sinon": "^0.1.4",
         "karma-coverage": "^0.2.7",
         "karma-chrome-launcher": "^0.1.7",
         "karma-phantomjs-launcher": "^0.1.4",

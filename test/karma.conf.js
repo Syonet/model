@@ -3,7 +3,7 @@ module.exports = function ( config ) {
 
     config.set({
         basePath: "..",
-        frameworks: [ "mocha", "chai", "chai-as-promised" ],
+        frameworks: [ "mocha", "chai", "chai-as-promised", "chai-sinon" ],
         files: [
             "test/function.bind.js",
 
@@ -26,7 +26,7 @@ module.exports = function ( config ) {
             "Chrome",
             "PhantomJS"
         ],
-        reporters: [ "progress", "coverage" ],
+        reporters: [ "dots", "coverage" ],
         preprocessors: {
             "src/**/*.js": [ "coverage" ]
         },
