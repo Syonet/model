@@ -55,5 +55,9 @@
     "maximumLineLength": {
         "value": 100,
         "allowUrlComments": true
-    }
+    },
+    "excludeFiles": [
+        "node_modules/**/*",
+        "libs/**/*"
+    ]
 }
