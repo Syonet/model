@@ -68,7 +68,10 @@
 
                 putAuthorizationHeader( config );
                 return $http( config ).then( applyIdField, function ( response ) {
-                    throw response.data;
+                    return $q.reject({
+                        data: response.data,
+                        status: response.status
+                    });
                 });
             }
 
@@ -104,32 +107,41 @@
             }
 
             /**
-             * Fetches a PouchDB cached value or throws an error.
+             * Fetches a PouchDB cached value (if there's no connection) or throws an error.
              *
              * @param   {Model} model
              * @param   {Error} err
              * @returns {Promise}
              */
             function fetchCacheOrThrow ( model, err ) {
+                var promise;
                 var id = model.id();
-                var promise = id ? model._db.get( id ) : model._db.allDocs({
+                var offline = ( err && err.status === 0 ) || !$window.navigator.onLine;
+                var maybeThrow = function () {
+                    return $q(function ( resolve, reject ) {
+                        // Don't throw if a error is not available
+                        err ? reject( err ) : resolve();
+                    });
+                };
+
+                // Don't try to use a cached value coming from PouchDB if a connection is available
+                if ( !offline ) {
+                    return maybeThrow();
+                }
+
+                promise = id ? model._db.get( id ) : model._db.allDocs({
                     include_docs: true
                 });
 
                 return promise.then(function ( data ) {
                     if ( !id && !data.rows.length && err ) {
-                        throw err;
+                        return $q.reject( err );
                     }
 
                     return id ? data.doc : data.rows.map(function ( item ) {
                         return item.doc;
                     });
-                }, function () {
-                    // Don't throw if a error is not available
-                    if ( err ) {
-                        throw err;
-                    }
-                });
+                }, maybeThrow );
             }
 
             /**
