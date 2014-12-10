@@ -95,6 +95,14 @@
                 return $q.all( promises ).then(function ( revs ) {
                     // Set the _rev and _deleted flags into each document
                     data.forEach(function ( item, i ) {
+                        // Drop all properties starting with _ (except _id), as they're special for
+                        // PouchDB, and that would cause us problems while persisting the documents
+                        Object.keys( item ).forEach(function ( key ) {
+                            if ( key[ 0 ] === "_" && key !== "_id" ) {
+                                delete item[ key ];
+                            }
+                        });
+
                         item._rev = revs[ i ];
                         item._deleted = remove === true;
                     });

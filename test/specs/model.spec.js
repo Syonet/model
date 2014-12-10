@@ -42,6 +42,20 @@ describe( "Model", function () {
         expect( foo._path ).to.eql({ name: "foo" });
     });
 
+    it( "should cache documents without special keys", function () {
+        var promise;
+        var data = {
+            _blah: 123,
+            foo: "bar"
+        };
+
+        $httpBackend.expectGET( "/foo/bar" ).respond( 200, data );
+        promise = this.model( "foo" ).get( "bar" );
+        this.flush();
+
+        return expect( promise ).to.eventually.not.have.property( "_blah" );
+    });
+
     // ---------------------------------------------------------------------------------------------
 
     describe( ".id()", function () {
