@@ -232,7 +232,21 @@ describe( "Model", function () {
 
         describe( "on an element", function () {
             it( "should require collection to be supplied", function () {
-                expect( this.model( "foo" ).list ).to.throw;
+                expect( this.model( "foo" ).id( "bar" ).list ).to.throw;
+            });
+
+            it( "should list elements from child collection", function () {
+                var promise;
+                var data = {
+                    id: "foo",
+                    foo: "bar"
+                };
+
+                $httpBackend.expectGET( "/foo/bar/baz" ).respond( 200, [ data ] );
+                promise = this.model( "foo" ).id( "bar" ).list( "baz" );
+                this.flush();
+
+                return expect( promise ).to.eventually.have.deep.property( "[0].foo", "bar" );
             });
         });
     });
