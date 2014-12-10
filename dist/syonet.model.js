@@ -75,7 +75,10 @@
 
                 putAuthorizationHeader( config );
                 return $http( config ).then( applyIdField, function ( response ) {
-                    throw response.data;
+                    return $q.reject({
+                        data: response.data,
+                        status: response.status
+                    });
                 });
             }
 
@@ -111,32 +114,41 @@
             }
 
             /**
-             * Fetches a PouchDB cached value or throws an error.
+             * Fetches a PouchDB cached value (if there's no connection) or throws an error.
              *
              * @param   {Model} model
              * @param   {Error} err
              * @returns {Promise}
              */
             function fetchCacheOrThrow ( model, err ) {
+                var promise;
                 var id = model.id();
-                var promise = id ? model._db.get( id ) : model._db.allDocs({
+                var offline = ( err && err.status === 0 ) || !$window.navigator.onLine;
+                var maybeThrow = function () {
+                    return $q(function ( resolve, reject ) {
+                        // Don't throw if a error is not available
+                        err ? reject( err ) : resolve();
+                    });
+                };
+
+                // Don't try to use a cached value coming from PouchDB if a connection is available
+                if ( !offline ) {
+                    return maybeThrow();
+                }
+
+                promise = id ? model._db.get( id ) : model._db.allDocs({
                     include_docs: true
                 });
 
                 return promise.then(function ( data ) {
                     if ( !id && !data.rows.length && err ) {
-                        throw err;
+                        return $q.reject( err );
                     }
 
                     return id ? data.doc : data.rows.map(function ( item ) {
                         return item.doc;
                     });
-                }, function () {
-                    // Don't throw if a error is not available
-                    if ( err ) {
-                        throw err;
-                    }
-                });
+                }, maybeThrow );
             }
 
             /**
@@ -263,7 +275,40 @@
             };
 
             /**
-             * Get the current collection/element.
+             * List the current collection or a child collection of the current element.
+             *
+             * If `collection` is passed, then `.model( collection )` is invoked and a new model is
+             * created.
+             *
+             * Triggers a GET request.
+             *
+             * @param   {*} [collection]
+             * @returns {Promise}
+             */
+            Model.prototype.list = function ( collection ) {
+                var msg;
+                var self = this;
+
+                if ( this.id() ) {
+                    if ( collection ) {
+                        self = this.model( collection );
+                    } else {
+                        msg =
+                            "Can't invoke .list() in a element without specifying " +
+                            "child collection name.";
+                        throw new Error( msg );
+                    }
+                }
+
+                return createRequest( self, "GET" ).then(function ( data ) {
+                    return updateCache( self, data );
+                }, function ( err ) {
+                    return fetchCacheOrThrow( self, err );
+                });
+            };
+
+            /**
+             * Get the current element or a child element of the current collection.
              *
              * If `id` is passed, then `.id( id )` is invoked and a new model is created.
              *
@@ -273,10 +318,18 @@
              * @returns {Promise}
              */
             Model.prototype.get = function ( id ) {
+                var msg;
                 var self = this;
 
-                if ( !this.id() && id ) {
-                    self = this.id( id );
+                if ( !this.id() ) {
+                    if ( id ) {
+                        self = this.id( id );
+                    } else {
+                        msg =
+                            "Can't invoke .get() in a collection without specifying " +
+                            "child element ID.";
+                        throw new Error( msg );
+                    }
                 }
 
                 return createRequest( self, "GET" ).then(function ( data ) {
