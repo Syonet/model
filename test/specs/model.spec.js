@@ -157,7 +157,7 @@ describe( "Model", function () {
 
     // ---------------------------------------------------------------------------------------------
 
-    describe( ".get()", function () {
+    describe( ".list()", function () {
         describe( "on a collection", function () {
             it( "should do GET request and return", function () {
                 var promise;
@@ -168,7 +168,7 @@ describe( "Model", function () {
 
                 $httpBackend.expectGET( "/foo" ).respond( data );
 
-                promise = this.model( "foo" ).get();
+                promise = this.model( "foo" ).list();
                 this.flush();
 
                 return expect( promise ).to.eventually.have.deep.property( "[0].foo", data.foo );
@@ -189,7 +189,7 @@ describe( "Model", function () {
                 }));
 
                 $httpBackend.expectGET( "/foo" ).respond( 0, null );
-                promise = foo.get();
+                promise = foo.list();
 
                 // TODO find out why we can't use a timeout here
                 this.flush( false );
@@ -198,6 +198,22 @@ describe( "Model", function () {
                     expect( value ).to.eql([ data ]);
                 });
             }));
+        });
+
+        describe( "on an element", function () {
+            it( "should require collection to be supplied", function () {
+                expect( this.model( "foo" ).list ).to.throw;
+            });
+        });
+    });
+
+    // ---------------------------------------------------------------------------------------------
+
+    describe( ".get()", function () {
+        describe( "on a collection", function () {
+            it( "should require ID to be supplied", function () {
+                expect( this.model( "foo" ).get ).to.throw;
+            });
         });
 
         describe( "on an element", function () {

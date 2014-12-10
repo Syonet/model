@@ -66,7 +66,7 @@ describe( "Model Provider", function () {
             provider.base( "/api" );
 
             $httpBackend.expectGET( "/api/foo" ).respond( 200, [] );
-            promise = model( "foo" ).get();
+            promise = model( "foo" ).list();
             this.flush();
 
             return promise;

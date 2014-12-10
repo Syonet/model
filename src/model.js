@@ -268,7 +268,40 @@
             };
 
             /**
-             * Get the current collection/element.
+             * List the current collection or a child collection of the current element.
+             *
+             * If `collection` is passed, then `.model( collection )` is invoked and a new model is
+             * created.
+             *
+             * Triggers a GET request.
+             *
+             * @param   {*} [collection]
+             * @returns {Promise}
+             */
+            Model.prototype.list = function ( collection ) {
+                var msg;
+                var self = this;
+
+                if ( this.id() ) {
+                    if ( collection ) {
+                        self = this.model( collection );
+                    } else {
+                        msg =
+                            "Can't invoke .list() in a element without specifying " +
+                            "child collection name.";
+                        throw new Error( msg );
+                    }
+                }
+
+                return createRequest( self, "GET" ).then(function ( data ) {
+                    return updateCache( self, data );
+                }, function ( err ) {
+                    return fetchCacheOrThrow( self, err );
+                });
+            };
+
+            /**
+             * Get the current element or a child element of the current collection.
              *
              * If `id` is passed, then `.id( id )` is invoked and a new model is created.
              *
@@ -278,10 +311,18 @@
              * @returns {Promise}
              */
             Model.prototype.get = function ( id ) {
+                var msg;
                 var self = this;
 
-                if ( !this.id() && id ) {
-                    self = this.id( id );
+                if ( !this.id() ) {
+                    if ( id ) {
+                        self = this.id( id );
+                    } else {
+                        msg =
+                            "Can't invoke .get() in a collection without specifying " +
+                            "child element ID.";
+                        throw new Error( msg );
+                    }
                 }
 
                 return createRequest( self, "GET" ).then(function ( data ) {
