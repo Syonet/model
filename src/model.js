@@ -142,6 +142,8 @@
                 });
 
                 return promise.then(function ( data ) {
+                    // If we're dealing with a collection which has no cached values,
+                    // we must throw
                     if ( !id && !data.rows.length && err ) {
                         return $q.reject( err );
                     }
