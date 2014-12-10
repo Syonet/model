@@ -61,7 +61,7 @@
             function createRequest ( model, method, data ) {
                 var config = {
                     method: method,
-                    url: fixDoubleSlashes( provider.base() + model.toURL() ),
+                    url: model.toURL(),
                     data: data,
                     headers: {}
                 };
@@ -272,7 +272,7 @@
                     next = next._parent;
                 } while ( next );
 
-                return path;
+                return fixDoubleSlashes( provider.base() + path );
             };
 
             /**
