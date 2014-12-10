@@ -132,6 +132,22 @@ describe( "Model", function () {
             this.flush();
             return promise;
         });
+
+        it( "should allow usage of empty password", function () {
+            var promise;
+
+            $httpBackend.expectGET( "/foo/bar", function ( headers ) {
+                return headers.Authorization === "Basic " + btoa( "foo:" );
+            }).respond( 200, {
+                foo: "bar"
+            });
+
+            this.model.auth( "foo" );
+            promise = this.model( "foo" ).get( "bar" );
+
+            this.flush();
+            return promise;
+        });
     });
 
     // ---------------------------------------------------------------------------------------------
