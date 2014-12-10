@@ -61,7 +61,7 @@
             function createRequest ( model, method, data ) {
                 var config = {
                     method: method,
-                    url: fixDoubleBackslashes( provider.base() + model.toURL() ),
+                    url: fixDoubleSlashes( provider.base() + model.toURL() ),
                     data: data,
                     headers: {}
                 };
@@ -433,12 +433,12 @@
         }
 
         /**
-         * Remove double backslashes from a URL.
+         * Remove double slashes from a URL.
          *
          * @param   {String} url
          * @returns {String}
          */
-        function fixDoubleBackslashes ( url ) {
+        function fixDoubleSlashes ( url ) {
             return url.replace( /\/\//g, function ( match, index ) {
                 return /https?:/.test( url.substr( 0, index ) ) ? match : "/";
             });
