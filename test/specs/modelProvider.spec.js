@@ -61,8 +61,8 @@ describe( "Model Provider", function () {
 
     describe( ".base()", function () {
         it( "should be used as the base URL for requests", function () {
-            provider.base( "/api" );
-            expect( model( "foo" ).toURL() ).to.equal( "/api/foo" );
+            provider.base( "http://foo/api" );
+            expect( model( "foo" ).toURL() ).to.equal( "http://foo/api/foo" );
         });
 
         it( "should return the base URL for requests", function () {
