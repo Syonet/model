@@ -59,10 +59,12 @@
              * @returns {Promise}
              */
             function createRequest ( model, method, data ) {
+                var safe = isSafeMethod( method );
                 var config = {
                     method: method,
                     url: model.toURL(),
-                    data: data,
+                    params: safe ? data : null,
+                    data: safe ? null : data,
                     headers: {}
                 };
 
@@ -286,9 +288,10 @@
              * Triggers a GET request.
              *
              * @param   {*} [collection]
+             * @param   {Object} [query]
              * @returns {Promise}
              */
-            Model.prototype.list = function ( collection ) {
+            Model.prototype.list = function ( collection, query ) {
                 var msg;
                 var self = this;
 
@@ -301,9 +304,11 @@
                             "child collection name.";
                         throw new Error( msg );
                     }
+                } else {
+                    query = collection;
                 }
 
-                return createRequest( self, "GET" ).then(function ( data ) {
+                return createRequest( self, "GET", query ).then(function ( data ) {
                     return updateCache( self, data );
                 }, function ( err ) {
                     return fetchCacheOrThrow( self, err );
@@ -444,6 +449,16 @@
             return url.replace( /\/\//g, function ( match, index ) {
                 return /https?:/.test( url.substr( 0, index ) ) ? match : "/";
             });
+        }
+
+        /**
+         * Detect if a string is a safe HTTP method.
+         *
+         * @param   {String} method
+         * @returns {Boolean}
+         */
+        function isSafeMethod ( method ) {
+            return /^(?:GET|HEAD)$/.test( method );
         }
     }
 }();

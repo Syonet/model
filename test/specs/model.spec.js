@@ -204,6 +204,23 @@ describe( "Model", function () {
                 return expect( promise ).to.eventually.have.deep.property( "[0].foo", data.foo );
             });
 
+            it( "should do GET request with parameters and return", function () {
+                var promise;
+                var data = [{
+                    id: "foo",
+                    foo: "bar"
+                }];
+
+                $httpBackend.expectGET( "/foo?bar=baz" ).respond( data );
+
+                promise = this.model( "foo" ).list({
+                    bar: "baz"
+                });
+                this.flush();
+
+                return expect( promise ).to.eventually.have.deep.property( "[0].foo", data.foo );
+            });
+
             it( "should return cached array when receiving HTTP status 0", inject(function ( $q ) {
                 var promise;
                 var data = { foo: "bar" };
@@ -244,6 +261,22 @@ describe( "Model", function () {
 
                 $httpBackend.expectGET( "/foo/bar/baz" ).respond( 200, [ data ] );
                 promise = this.model( "foo" ).id( "bar" ).list( "baz" );
+                this.flush();
+
+                return expect( promise ).to.eventually.have.deep.property( "[0].foo", "bar" );
+            });
+
+            it( "should list elements from child collection with params", function () {
+                var promise;
+                var data = {
+                    id: "foo",
+                    foo: "bar"
+                };
+
+                $httpBackend.expectGET( "/foo/bar/baz?qux=quux" ).respond( 200, [ data ] );
+                promise = this.model( "foo" ).id( "bar" ).list( "baz", {
+                    qux: "quux"
+                });
                 this.flush();
 
                 return expect( promise ).to.eventually.have.deep.property( "[0].foo", "bar" );
