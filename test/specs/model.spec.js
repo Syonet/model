@@ -16,14 +16,8 @@ describe( "Model", function () {
             return model;
         });
 
-        this.digest = function () {
-            setTimeout(function () {
-                $rootScope.$apply();
-            });
-        };
-
-        this.flush = function ( timeout ) {
-            timeout !== false ? setTimeout( $httpBackend.flush ) : $httpBackend.flush();
+        this.flush = function () {
+            $httpBackend.flush();
         };
     }));
 
@@ -154,16 +148,16 @@ describe( "Model", function () {
 
     describe( ".rev()", function () {
         it( "should reject when invoked in a collection", function () {
-            var promise = this.model( "foo" ).rev();
-            this.digest();
+            var foo = this.model( "foo" );
+            var getRev = function () {
+                return foo.rev();
+            };
 
-            return expect( promise ).to.be.rejectedWith( "Can't get revision of a collection!" );
+            return expect( getRev ).to.throw( Error, "Can't get revision of a collection!" );
         });
 
         it( "should resolve with null when no revision found", function () {
             var promise = this.model( "foo" ).id( "bar" ).rev();
-            this.digest();
-
             return expect( promise ).to.become( null );
         });
 
@@ -180,7 +174,6 @@ describe( "Model", function () {
                 expect( rev ).to.equal( rev2 );
             });
 
-            this.digest();
             return promise;
         });
     });
@@ -225,7 +218,7 @@ describe( "Model", function () {
                 var promise;
                 var data = { foo: "bar" };
                 var foo = this.model( "foo" );
-                var stub = sinon.stub( foo._db, "allDocs" ).withArgs( sinon.match({
+                var stub = sinon.stub( foo._db, "query" ).withArgs( sinon.match.func, sinon.match({
                     include_docs: true
                 }));
 
@@ -238,13 +231,41 @@ describe( "Model", function () {
                 $httpBackend.expectGET( "/foo" ).respond( 0, null );
                 promise = foo.list();
 
-                // TODO find out why we can't use a timeout here
-                this.flush( false );
+                this.flush();
                 return promise.then(function ( value ) {
                     expect( stub ).to.have.been.called;
                     expect( value ).to.eql([ data ]);
                 });
             }));
+
+            it( "should return cached array in the original order", function () {
+                var promise;
+                var foo = this.model( "foo" );
+                var data = [{
+                    id: 5,
+                    foo: "bar"
+                }, {
+                    id: 3,
+                    foo: "baz"
+                }, {
+                    id: 2,
+                    foo: "qux"
+                }];
+
+                $httpBackend.expectGET( "/foo" ).respond( data );
+                foo.list();
+                this.flush();
+
+                $httpBackend.expectGET( "/foo" ).respond( 0, null );
+                promise = foo.list();
+                this.flush();
+
+                expect( promise ).to.eventually.have.deep.property( "[0].id", 5 );
+                expect( promise ).to.eventually.have.deep.property( "[1].id", 3 );
+                expect( promise ).to.eventually.have.deep.property( "[2].id", 2 );
+
+                return promise;
+            });
         });
 
         describe( "on an element", function () {

@@ -105,6 +105,7 @@
                             }
                         });
 
+                        item.$order = i;
                         item._rev = revs[ i ];
                         item._deleted = remove === true;
                     });
@@ -139,7 +140,7 @@
                     return maybeThrow();
                 }
 
-                promise = id ? model._db.get( id ) : model._db.allDocs({
+                promise = id ? model._db.get( id ) : model._db.query( mapFn, {
                     include_docs: true
                 });
 
@@ -241,7 +242,7 @@
                 var deferred = $q.defer();
 
                 if ( !id ) {
-                    deferred.reject( new Error( "Can't get revision of a collection!" ) );
+                    throw new Error( "Can't get revision of a collection!" );
                 } else {
                     this._db.get( id ).then(function ( doc ) {
                         deferred.resolve( doc._rev );
@@ -459,6 +460,16 @@
          */
         function isSafeMethod ( method ) {
             return /^(?:GET|HEAD)$/.test( method );
+        }
+
+        /**
+         * Map function for when listing docs offline.
+         * Emits them in the order they were fetched.
+         *
+         * @param   {Object} doc
+         */
+        function mapFn ( doc ) {
+            emit( doc.$order );
         }
     }
 }();
