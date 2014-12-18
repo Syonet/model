@@ -66,10 +66,12 @@
              * @returns {Promise}
              */
             function createRequest ( model, method, data ) {
+                var safe = isSafeMethod( method );
                 var config = {
                     method: method,
                     url: model.toURL(),
-                    data: data,
+                    params: safe ? data : null,
+                    data: safe ? null : data,
                     headers: {}
                 };
 
@@ -110,6 +112,7 @@
                             }
                         });
 
+                        item.$order = i;
                         item._rev = revs[ i ];
                         item._deleted = remove === true;
                     });
@@ -144,7 +147,7 @@
                     return maybeThrow();
                 }
 
-                promise = id ? model._db.get( id ) : model._db.allDocs({
+                promise = id ? model._db.get( id ) : model._db.query( mapFn, {
                     include_docs: true
                 });
 
@@ -246,7 +249,7 @@
                 var deferred = $q.defer();
 
                 if ( !id ) {
-                    deferred.reject( new Error( "Can't get revision of a collection!" ) );
+                    throw new Error( "Can't get revision of a collection!" );
                 } else {
                     this._db.get( id ).then(function ( doc ) {
                         deferred.resolve( doc._rev );
@@ -293,9 +296,10 @@
              * Triggers a GET request.
              *
              * @param   {*} [collection]
+             * @param   {Object} [query]
              * @returns {Promise}
              */
-            Model.prototype.list = function ( collection ) {
+            Model.prototype.list = function ( collection, query ) {
                 var msg;
                 var self = this;
 
@@ -308,9 +312,11 @@
                             "child collection name.";
                         throw new Error( msg );
                     }
+                } else {
+                    query = collection;
                 }
 
-                return createRequest( self, "GET" ).then(function ( data ) {
+                return createRequest( self, "GET", query ).then(function ( data ) {
                     return updateCache( self, data );
                 }, function ( err ) {
                     return fetchCacheOrThrow( self, err );
@@ -451,6 +457,26 @@
             return url.replace( /\/\//g, function ( match, index ) {
                 return /https?:/.test( url.substr( 0, index ) ) ? match : "/";
             });
+        }
+
+        /**
+         * Detect if a string is a safe HTTP method.
+         *
+         * @param   {String} method
+         * @returns {Boolean}
+         */
+        function isSafeMethod ( method ) {
+            return /^(?:GET|HEAD)$/.test( method );
+        }
+
+        /**
+         * Map function for when listing docs offline.
+         * Emits them in the order they were fetched.
+         *
+         * @param   {Object} doc
+         */
+        function mapFn ( doc ) {
+            emit( doc.$order );
         }
     }
 }();
