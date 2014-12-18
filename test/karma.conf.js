@@ -22,10 +22,7 @@ module.exports = function ( config ) {
             // Test specs
             "test/specs/**/*.js"
         ],
-        browsers: [
-            "Chrome",
-            "PhantomJS"
-        ],
+        browsers: [ "PhantomJS" ],
         reporters: [ "dots", "coverage" ],
         preprocessors: {
             "src/**/*.js": [ "coverage" ]
@@ -39,6 +36,5 @@ module.exports = function ( config ) {
     // Special case for Travis CI
     if ( process.env.TRAVIS ) {
         config.transports = [ "xhr-polling" ];
-        config.browsers = [ "PhantomJS" ];
     }
 };
