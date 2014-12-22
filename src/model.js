@@ -21,6 +21,15 @@
         provider.idFieldHeader = "X-Id-Field";
 
         /**
+         * The name of an alternative header that will contain the Content-Length, in case
+         * the server provides it.
+         * Useful when computing the length of a response which has Transfer-Encoding: chunked
+         *
+         * @type {string}
+         */
+        provider.altContentLengthHeader = "X-Content-Length";
+
+        /**
          * Get/set the username and password used for authentication.
          *
          * @param   {String} [username]
@@ -59,6 +68,8 @@
              * @returns {Promise}
              */
             function createRequest ( model, method, data ) {
+                var httpPromise;
+                var deferred = $q.defer();
                 var safe = isSafeMethod( method );
                 var config = {
                     method: method,
@@ -68,13 +79,19 @@
                     headers: {}
                 };
 
+                // FIXME This functionality has not been tested yet.
+                config.headers.__modelXHR__ = createXhrNotifier( deferred );
+
                 putAuthorizationHeader( config );
-                return $http( config ).then( applyIdField, function ( response ) {
+                httpPromise = $http( config ).then( applyIdField, function ( response ) {
                     return $q.reject({
                         data: response.data,
                         status: response.status
                     });
                 });
+
+                deferred.resolve( httpPromise );
+                return deferred.promise;
             }
 
             /**
@@ -470,6 +487,40 @@
          */
         function mapFn ( doc ) {
             emit( doc.$order );
+        }
+
+        /**
+         * Watch on progress events of a XHR and trigger promises notifications
+         *
+         * @param   {Object} deferred
+         * @returns {Function}
+         */
+        function createXhrNotifier ( deferred ) {
+            return function () {
+                return function ( xhr ) {
+                    var altHeader = provider.altContentLengthHeader;
+
+                    if ( !xhr ) {
+                        return;
+                    }
+
+                    xhr.addEventListener( "progress", function ( evt ) {
+                        var obj = {
+                            total: evt.total,
+                            loaded: evt.loaded
+                        };
+
+                        // Provide total bytes of the response with the alternative
+                        // Content-Length, when it exists in the response.
+                        if ( !evt.total ) {
+                            obj.total = +xhr.getResponseHeader( altHeader );
+                            obj.total = obj.total || 0;
+                        }
+
+                        deferred.notify( obj );
+                    });
+                };
+            };
         }
     }
 }();
