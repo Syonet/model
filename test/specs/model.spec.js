@@ -106,6 +106,11 @@ describe( "Model", function () {
             var element = this.model( "foo" ).id( "bar" ).model( "baz" ).id( "qux" );
             expect( element.toURL() ).to.equal( "/foo/bar/baz/qux" );
         });
+
+        it( "should join IDs that are arrays with a comma", function () {
+            var element = this.model( "foo" ).id([ "bar", "baz", "qux" ]);
+            expect( element.toURL() ).to.equal( "/foo/bar,baz,qux" );
+        });
     });
 
     // ---------------------------------------------------------------------------------------------
