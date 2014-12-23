@@ -5,8 +5,6 @@
     var setReqHeader = proto.setRequestHeader;
     proto.setRequestHeader = function ( header, value ) {
         if ( header === "__modelXHR__" ) {
-            console.log( this );
-
             value( this );
         } else {
             return setReqHeader.apply( this, arguments );
