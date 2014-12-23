@@ -325,6 +325,16 @@ describe( "Model", function () {
 
                 return expect( promise ).to.be.rejected;
             });
+
+            it( "should reject if offline and no cached value is present", function () {
+                var promise;
+
+                $httpBackend.expectGET( "/foo" ).respond( 0, null );
+                promise = this.model( "foo" ).list();
+                $httpBackend.flush();
+
+                return expect( promise ).to.be.rejected;
+            });
         });
 
         // -----------------------------------------------------------------------------------------
