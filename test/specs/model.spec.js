@@ -266,7 +266,49 @@ describe( "Model", function () {
 
                 return promise;
             });
+
+            it( "should wipe previous cached values on another request", function () {
+                var promise;
+                var foo = this.model( "foo" );
+                var data = [{
+                    id: 5,
+                    foo: "bar"
+                }, {
+                    id: 3,
+                    foo: "baz"
+                }, {
+                    id: 2,
+                    foo: "qux"
+                }];
+
+                // First request carries all elements
+                $httpBackend.expectGET( "/foo" ).respond( data );
+                promise = foo.list();
+                $httpBackend.flush();
+
+                return promise.then(function () {
+                    // Second request removes one of them
+                    $httpBackend.expectGET( "/foo" ).respond( data.slice( 1 ) );
+                    promise = foo.list();
+
+                    setTimeout( $httpBackend.flush );
+                    return promise;
+                }).then(function () {
+                    // Third request will fail, so the cache should be equal to the response of the
+                    // second request
+                    $httpBackend.expectGET( "/foo" ).respond( 0, null );
+                    promise = foo.list();
+                    setTimeout( $httpBackend.flush );
+
+                    expect( promise ).to.eventually.have.deep.property( "[0].id", 3 );
+                    expect( promise ).to.eventually.have.deep.property( "[1].id", 2 );
+
+                    return promise;
+                });
+            });
         });
+
+        // -----------------------------------------------------------------------------------------
 
         describe( "on an element", function () {
             it( "should require collection to be supplied", function () {
@@ -313,6 +355,8 @@ describe( "Model", function () {
                 expect( this.model( "foo" ).get ).to.throw;
             });
         });
+
+        // -----------------------------------------------------------------------------------------
 
         describe( "on an element", function () {
             it( "should do GET request and return response", function () {

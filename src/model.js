@@ -104,8 +104,12 @@
              */
             function updateCache ( model, data, remove ) {
                 var promises;
+                var ids = [];
                 var isCollection = !model.id();
                 data = isCollection ? data : [ data ];
+
+                // Force proper boolean value
+                remove = remove === true;
 
                 promises = data.map(function ( item ) {
                     return isCollection ? model.id( item._id ).rev() : model.rev();
@@ -124,9 +128,26 @@
 
                         item.$order = i;
                         item._rev = revs[ i ];
-                        item._deleted = remove === true;
+                        item._deleted = remove;
+                        ids.push( item._id );
                     });
 
+                    return isCollection && !remove ? model._db.allDocs() : {
+                        rows: []
+                    };
+                }).then(function ( toRemove ) {
+                    toRemove = toRemove.rows.filter(function ( row ) {
+                        return !~ids.indexOf( row.id );
+                    }).map(function ( row ) {
+                        return {
+                            _id: row.id,
+                            _rev: row.value.rev,
+                            _deleted: true
+                        };
+                    });
+
+                    return toRemove.length ? model._db.bulkDocs( toRemove ) : {};
+                }).then(function () {
                     // Trigger the mass operation
                     return model._db.bulkDocs( data );
                 }).then(function () {
