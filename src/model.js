@@ -165,7 +165,7 @@
             function fetchCacheOrThrow ( model, err ) {
                 var promise;
                 var id = model.id();
-                var offline = ( err && err.status === 0 ) || !$window.navigator.onLine;
+                var offline = err && err.status === 0;
                 var maybeThrow = function () {
                     return $q(function ( resolve, reject ) {
                         // Don't throw if a error is not available
@@ -174,7 +174,7 @@
                 };
 
                 // Don't try to use a cached value coming from PouchDB if a connection is available
-                if ( !offline ) {
+                if ( !offline && err != null ) {
                     return maybeThrow();
                 }
 

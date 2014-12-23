@@ -306,6 +306,25 @@ describe( "Model", function () {
                     return promise;
                 });
             });
+
+            it( "should not use cached value if error happens and not offline", function () {
+                var promise;
+                var foo = this.model( "foo" );
+                var data = [{
+                    id: "foo"
+                }];
+                $httpBackend.expectGET( "/foo" ).respond( data );
+                foo.list();
+                this.flush();
+
+                $httpBackend.expectGET( "/foo" ).respond( 500, {
+                    err: 1
+                });
+                promise = foo.list();
+                this.flush();
+
+                return expect( promise ).to.be.rejected;
+            });
         });
 
         // -----------------------------------------------------------------------------------------
@@ -391,6 +410,25 @@ describe( "Model", function () {
                     expect( value ).to.eql( data );
                 });
             }));
+
+            it( "should not use cached value if error happens and not offline", function () {
+                var promise;
+                var foobar = this.model( "foo" ).id( "bar" );
+                var data = {
+                    foo: "bar"
+                };
+                $httpBackend.expectGET( "/foo/bar" ).respond( data );
+                foobar.get();
+                this.flush();
+
+                $httpBackend.expectGET( "/foo/bar" ).respond( 500, {
+                    err: 1
+                });
+                promise = foobar.get();
+                this.flush();
+
+                return expect( promise ).to.be.rejected;
+            });
         });
     });
 
