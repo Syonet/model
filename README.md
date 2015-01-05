@@ -82,5 +82,64 @@ model( "foo" ).get( "bar" ); // GET /foo/bar
 model( "foo" ).id( "bar" ).get(); // GET /foo/bar
 ```
 
+### `.save( data )`
+Save an element or collection and return a promise for it. Triggers a `POST` request and saves the result to the PouchDB cache.
+
+Example:
+
+```javascript
+model( "foo" ).id( "bar" ).save({
+    foo: "bar"
+});
+// POST /foo/bar
+// { foo: "bar" }
+
+// Batch save
+model( "foo" ).save([{
+    id: 1,
+    foo: "bar"
+}, {
+    id: 2,
+    foo: "baz"
+]);
+// POST /foo
+// [...]
+```
+
+### `.patch( data )`
+Patch an element or collection and return a promise for it. Triggers a `PATCH` request and saves the result to the PouchDB cache.
+
+Example:
+
+```javascript
+model( "foo" ).id( "bar" ).patch({
+    foo: "bar"
+});
+// PATCH /foo/bar
+// { foo: "bar" }
+
+// Batch save
+model( "foo" ).patch([{
+    id: 1,
+    foo: "bar"
+}, {
+    id: 2,
+    foo: "baz"
+]);
+// PATCH /foo
+// [...]
+```
+
+### `.remove()`
+Remove an element or collection and returns a promise for it. Triggers a `DELETE` request and wipes the
+corresponding elements from the PouchDB cache.
+
+Example:
+
+```javascript
+model( "foo" ).remove(); // => DELETE /foo
+model( "foo" ).id( "bar" ).remove(); // => DELETE /foo/bar
+```
+
 ## License
 MIT
