@@ -6,6 +6,7 @@
     "eqeqeq": true,
     "eqnull": true,
     "expr": true,
+    "boss": true,
     "globalstrict": true,
     "newcap": false,
     "validthis": true
