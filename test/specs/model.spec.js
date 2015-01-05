@@ -4,12 +4,19 @@ describe( "Model", function () {
     var injector, $rootScope, $httpBackend;
     var expect = chai.expect;
 
-    beforeEach( module( "syonet.model" ) );
+    beforeEach( module( "syonet.model", function ( modelProvider ) {
+        // Decrease request timeout
+        modelProvider.timeout = 100;
+    }));
+
     beforeEach( inject(function ( $injector ) {
         var model;
         injector = $injector;
         $rootScope = $injector.get( "$rootScope" );
         $httpBackend = $injector.get( "$httpBackend" );
+
+        // Ping request backend definition
+        this.ping = $httpBackend.whenHEAD( "/" ).respond( 200 );
 
         this.__defineGetter__( "model", function () {
             model = model || $injector.get( "model" );
@@ -48,6 +55,21 @@ describe( "Model", function () {
         this.flush();
 
         return expect( promise ).to.eventually.not.have.property( "_blah" );
+    });
+
+    it( "should timeout requests", function ( done ) {
+        var promise;
+
+        this.ping.respond( 0 );
+        $httpBackend.expectGET( "/foo" ).respond( 200, {} );
+        promise = this.model( "foo" ).list();
+
+        setTimeout(function () {
+            $httpBackend.flush();
+            expect( promise ).to.eventually.be.rejectedWith( sinon.match({
+                status: 0
+            })).then( done, done );
+        }, 100 );
     });
 
     // ---------------------------------------------------------------------------------------------

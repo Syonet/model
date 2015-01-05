@@ -4,7 +4,7 @@ describe( "Model Provider", function () {
     var $rootScope, $httpBackend, provider, model;
     var expect = chai.expect;
 
-    angular.module( "provider", [ "syonet.model" ], function ( modelProvider ) {
+    var mockModule = angular.module( "provider", [ "syonet.model" ], function ( modelProvider ) {
         provider = modelProvider;
     });
 
@@ -13,6 +13,9 @@ describe( "Model Provider", function () {
         $rootScope = $injector.get( "$rootScope" );
         $httpBackend = $injector.get( "$httpBackend" );
         model = $injector.get( "model" );
+
+        // Ping request backend definition
+        this.ping = $httpBackend.whenHEAD( "/" ).respond( 200 );
 
         this.flush = function () {
             setTimeout(function () {
@@ -67,6 +70,41 @@ describe( "Model Provider", function () {
 
         it( "should return the base URL for requests", function () {
             expect( provider.base() ).to.equal( "/" );
+        });
+    });
+
+    // ---------------------------------------------------------------------------------------------
+
+    describe( ".timeout", function () {
+        var httpSpy;
+
+        before(function () {
+            mockModule.config(function ( $provide ) {
+                $provide.decorator( "$http", function ( $delegate ) {
+                    httpSpy = sinon.spy( $delegate );
+                    return httpSpy;
+                });
+            });
+        });
+
+        after(function () {
+            mockModule.config(function ( $provide ) {
+                $provide.decorator( "$http", function ( $delegate ) {
+                    return $delegate.restore();
+                });
+            });
+        });
+
+        it( "should define the timeout for pinging the server", function () {
+            provider.timeout = 123;
+            model( "foo" ).list();
+
+            expect( httpSpy ).to.have.been.calledWithMatch({
+                method: "HEAD",
+                timeout: 123
+            });
+
+            this.flush();
         });
     });
 });

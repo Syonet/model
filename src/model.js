@@ -30,6 +30,13 @@
         provider.altContentLengthHeader = "X-Content-Length";
 
         /**
+         * Timeout in milliseconds for pinging the target REST server
+         *
+         * @type {Number}
+         */
+        provider.timeout = 5000;
+
+        /**
          * Get/set the username and password used for authentication.
          *
          * @param   {String} [username]
@@ -76,7 +83,8 @@
                     url: model.toURL(),
                     params: safe ? data : null,
                     data: safe ? null : data,
-                    headers: {}
+                    headers: {},
+                    timeout: createTimeoutReq()
                 };
 
                 // FIXME This functionality has not been tested yet.
@@ -92,6 +100,18 @@
 
                 deferred.resolve( httpPromise );
                 return deferred.promise;
+            }
+
+            function createTimeoutReq () {
+                return $http({
+                    method: "HEAD",
+                    url: provider.base(),
+                    timeout: provider.timeout
+                }).then(function () {
+                    return $q.reject( new Error( "Succesfully pinged RESTful server" ) );
+                }, function ( err ) {
+                    return err;
+                });
             }
 
             /**
