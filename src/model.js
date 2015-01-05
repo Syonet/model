@@ -8,6 +8,9 @@
         var baseUrl = "/";
         var provider = this;
 
+        // Special object to determine that returning a HTTP response should be skipped
+        var SKIP_RESPONSE = {};
+
         /**
          * PouchDB database name prefix
          * @type    {String}
@@ -99,6 +102,13 @@
 
                 putAuthorizationHeader( config );
                 httpPromise = $http( config ).then( applyIdField, function ( response ) {
+                    // If the request is unsafe (what means it's going to modify some resource),
+                    // and it has failed to reach the target server, then store it for replaying
+                    // later.
+                    if ( !safe && response.status === 0 ) {
+                        return storeRequest( model, method, data );
+                    }
+
                     return $q.reject({
                         data: response.data,
                         status: response.status
@@ -131,6 +141,25 @@
                 $timeout(function () {
                     currPing = null;
                 }, provider.pingDelay, false );
+            }
+
+            /**
+             * Store a combination of model/method/data as a request in a temporary, hidden DB.
+             *
+             * @param   {Model} model
+             * @param   {String} method
+             * @param   {Object} [data]
+             * @returns {Promise}
+             */
+            function storeRequest ( model, method, data ) {
+                var updatesDB = getDB( "__updates" );
+                return updatesDB.post({
+                    model: model.toURL(),
+                    method: method,
+                    data: data
+                }).then(function () {
+                    return SKIP_RESPONSE;
+                });
             }
 
             /**
@@ -253,6 +282,16 @@
             }
 
             /**
+             * Return a DB instance
+             *
+             * @param   {String} name
+             * @returns {PouchDB}
+             */
+            function getDB ( name ) {
+                return pouchDB( provider.dbNamePrefix + "." + name );
+            }
+
+            /**
              * @param   {String} name
              * @returns {Model}
              * @constructor
@@ -266,7 +305,7 @@
                     throw new Error( "Model name must be supplied" );
                 }
 
-                this._db = pouchDB( provider.dbNamePrefix + "." + name );
+                this._db = getDB( name );
 
                 this._path = {
                     name: name
@@ -435,6 +474,10 @@
             Model.prototype.save = function ( data ) {
                 var self = this;
                 return createRequest( self, "POST", data ).then(function ( docs ) {
+                    if ( docs === SKIP_RESPONSE ) {
+                        return data;
+                    }
+
                     return updateCache( self, docs );
                 });
             };
@@ -449,6 +492,10 @@
             Model.prototype.patch = function ( data ) {
                 var self = this;
                 return createRequest( this, "PATCH", data ).then(function ( docs ) {
+                    if ( docs === SKIP_RESPONSE ) {
+                        return data;
+                    }
+
                     return updateCache( self, docs );
                 });
             };
@@ -469,7 +516,7 @@
                 }).then(function ( cached ) {
                     return cached && updateCache( self, cached, true );
                 }).then(function () {
-                    return response;
+                    return response === SKIP_RESPONSE ? null : response;
                 });
             };
 

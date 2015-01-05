@@ -1,7 +1,7 @@
 describe( "Model", function () {
     "use strict";
 
-    var injector, $rootScope, $httpBackend;
+    var injector, $rootScope, $httpBackend, pouchDB;
     var expect = chai.expect;
 
     beforeEach( module( "syonet.model", function ( modelProvider ) {
@@ -14,6 +14,7 @@ describe( "Model", function () {
         injector = $injector;
         $rootScope = $injector.get( "$rootScope" );
         $httpBackend = $injector.get( "$httpBackend" );
+        pouchDB = $injector.get( "pouchDB" );
 
         // Ping request backend definition
         this.ping = $httpBackend.whenHEAD( "/" ).respond( 200 );
@@ -35,6 +36,10 @@ describe( "Model", function () {
 
     afterEach(function () {
         return this.model( "foo" )._db.destroy();
+    });
+
+    afterEach(function () {
+        return pouchDB( "modelDB.__updates" ).destroy();
     });
 
     it( "should be created with provided path", function () {
@@ -500,6 +505,33 @@ describe( "Model", function () {
 
             return expect( promise ).to.eventually.have.property( "foo", data.foo );
         });
+
+        it( "should store request and return current data when offline", function () {
+            var promise;
+            var data = {
+                foo: "bar"
+            };
+
+            $httpBackend.expectPOST( "/foo" ).respond( 0, null );
+            promise = this.model( "foo" ).save( data );
+            $httpBackend.flush();
+
+            expect( promise ).to.eventually.equal( data );
+
+            return pouchDB( "modelDB.__updates" ).allDocs({
+                include_docs: true
+            }).then(function ( docs ) {
+                var row = docs.rows[ 0 ];
+
+                expect( docs.rows[ 0 ].doc ).to.eql({
+                    _id: row.id,
+                    _rev: row.value.rev,
+                    model: "/foo",
+                    method: "POST",
+                    data: data
+                });
+            });
+        });
     });
 
     // ---------------------------------------------------------------------------------------------
@@ -529,6 +561,33 @@ describe( "Model", function () {
 
             return expect( promise ).to.eventually.have.property( "foo", data.foo );
         });
+
+        it( "should store request and return current data when offline", function () {
+            var promise;
+            var data = [{
+                foo: "bar"
+            }];
+
+            $httpBackend.expectPATCH( "/foo" ).respond( 0, null );
+            promise = this.model( "foo" ).patch( data );
+            $httpBackend.flush();
+
+            expect( promise ).to.eventually.equal( data );
+
+            return pouchDB( "modelDB.__updates" ).allDocs({
+                include_docs: true
+            }).then(function ( docs ) {
+                var row = docs.rows[ 0 ];
+
+                expect( docs.rows[ 0 ].doc ).to.eql({
+                    _id: row.id,
+                    _rev: row.value.rev,
+                    model: "/foo",
+                    method: "PATCH",
+                    data: data
+                });
+            });
+        });
     });
 
     // ---------------------------------------------------------------------------------------------
@@ -552,6 +611,29 @@ describe( "Model", function () {
             this.flush();
 
             return expect( promise ).to.eventually.be.undefined;
+        });
+
+        it( "should store request and return null when offline", function () {
+            var promise;
+
+            $httpBackend.expectDELETE( "/foo" ).respond( 0, null );
+            promise = this.model( "foo" ).remove();
+            $httpBackend.flush();
+
+            expect( promise ).to.eventually.equal( null );
+
+            return pouchDB( "modelDB.__updates" ).allDocs({
+                include_docs: true
+            }).then(function ( docs ) {
+                var row = docs.rows[ 0 ];
+
+                expect( docs.rows[ 0 ].doc ).to.eql({
+                    _id: row.id,
+                    _rev: row.value.rev,
+                    model: "/foo",
+                    method: "DELETE"
+                });
+            });
         });
     });
 });
