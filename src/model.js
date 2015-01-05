@@ -4,7 +4,7 @@
     angular.module( "syonet.model" ).provider( "model", modelProvider );
 
     function modelProvider () {
-        var auth;
+        var currPing, auth;
         var baseUrl = "/";
         var provider = this;
 
@@ -25,16 +25,23 @@
          * the server provides it.
          * Useful when computing the length of a response which has Transfer-Encoding: chunked
          *
-         * @type {string}
+         * @type    {String}
          */
         provider.altContentLengthHeader = "X-Content-Length";
 
         /**
-         * Timeout in milliseconds for pinging the target REST server
+         * Timeout (in ms) for pinging the target REST server
          *
-         * @type {Number}
+         * @type    {Number}
          */
         provider.timeout = 5000;
+
+        /**
+         * Delay (in ms) for triggering another ping request.
+         *
+         * @type    {Number}
+         */
+        provider.pingDelay = 60000;
 
         /**
          * Get/set the username and password used for authentication.
@@ -67,7 +74,7 @@
             return baseUrl;
         };
 
-        provider.$get = function ( $window, $q, $http, pouchDB ) {
+        provider.$get = function ( $window, $timeout, $q, $http, pouchDB ) {
             /**
              * @param   {Model} model
              * @param   {String} method
@@ -103,15 +110,27 @@
             }
 
             function createPingRequest () {
-                return $http({
+                return currPing = currPing || $http({
                     method: "HEAD",
                     url: provider.base(),
                     timeout: provider.timeout
                 }).then(function () {
+                    clearPingRequest();
                     return $q.reject( new Error( "Succesfully pinged RESTful server" ) );
                 }, function ( err ) {
+                    clearPingRequest();
                     return err;
                 });
+            }
+
+            /**
+             * Clear the current saved ping request.
+             * Uses $timeout, however does not trigger a digest cycle.
+             */
+            function clearPingRequest () {
+                $timeout(function () {
+                    currPing = null;
+                }, provider.pingDelay, false );
             }
 
             /**

@@ -4,11 +4,14 @@ describe( "Model Provider", function () {
     var $rootScope, $httpBackend, provider, model;
     var expect = chai.expect;
 
-    var mockModule = angular.module( "provider", [ "syonet.model" ], function ( modelProvider ) {
+    beforeEach( module( "syonet.model", function ( $provide, modelProvider ) {
         provider = modelProvider;
-    });
 
-    beforeEach( module( "provider" ) );
+        $provide.decorator( "$http", function ( $delegate ) {
+            return sinon.spy( $delegate );
+        });
+    }));
+
     beforeEach( inject(function ( $injector ) {
         $rootScope = $injector.get( "$rootScope" );
         $httpBackend = $injector.get( "$httpBackend" );
@@ -76,35 +79,45 @@ describe( "Model Provider", function () {
     // ---------------------------------------------------------------------------------------------
 
     describe( ".timeout", function () {
-        var httpSpy;
-
-        before(function () {
-            mockModule.config(function ( $provide ) {
-                $provide.decorator( "$http", function ( $delegate ) {
-                    httpSpy = sinon.spy( $delegate );
-                    return httpSpy;
-                });
-            });
-        });
-
-        after(function () {
-            mockModule.config(function ( $provide ) {
-                $provide.decorator( "$http", function ( $delegate ) {
-                    return $delegate.restore();
-                });
-            });
-        });
-
-        it( "should define the timeout for pinging the server", function () {
+        it( "should define the timeout for pinging the server", inject(function ( $http ) {
             provider.timeout = 123;
             model( "foo" ).list();
 
-            expect( httpSpy ).to.have.been.calledWithMatch({
+            expect( $http ).to.have.been.calledWithMatch({
                 method: "HEAD",
                 timeout: 123
             });
 
             this.flush();
+        }));
+    });
+
+    // ---------------------------------------------------------------------------------------------
+
+    describe( ".pingDelay", function () {
+        var $http, $timeout;
+        beforeEach( inject(function ( _$http_, _$timeout_ ) {
+            $http = _$http_;
+            $timeout = _$timeout_;
+        }));
+
+        it( "should not retrigger ping request before ping delay has passed", function () {
+            $http = $http.withArgs( sinon.match({
+                method: "HEAD"
+            }));
+
+            $httpBackend.whenGET( "/foo" ).respond( [] );
+
+            model( "foo" ).list();
+            model( "foo" ).list();
+
+            expect( $http ).to.have.callCount( 1 );
+            $httpBackend.flush();
+            $timeout.flush();
+
+            model( "foo" ).list();
+            expect( $http ).to.have.callCount( 2 );
+            $httpBackend.flush();
         });
     });
 });
