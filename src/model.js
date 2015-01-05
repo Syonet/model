@@ -84,7 +84,7 @@
                     params: safe ? data : null,
                     data: safe ? null : data,
                     headers: {},
-                    timeout: createTimeoutReq()
+                    timeout: createPingRequest()
                 };
 
                 // FIXME This functionality has not been tested yet.
@@ -102,7 +102,7 @@
                 return deferred.promise;
             }
 
-            function createTimeoutReq () {
+            function createPingRequest () {
                 return $http({
                     method: "HEAD",
                     url: provider.base(),
