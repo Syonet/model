@@ -5,7 +5,7 @@ module.exports = function ( config ) {
         basePath: "..",
         frameworks: [ "mocha", "chai", "chai-as-promised", "sinon-chai" ],
         files: [
-            "test/function.bind.js",
+            "test/init.js",
 
             // Production deps
             "libs/pouchdb/dist/pouchdb.js",

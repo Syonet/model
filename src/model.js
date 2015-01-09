@@ -4,18 +4,11 @@
     angular.module( "syonet.model" ).provider( "model", modelProvider );
 
     function modelProvider () {
-        var currPing, auth;
         var baseUrl = "/";
         var provider = this;
 
         // Special object to determine that returning a HTTP response should be skipped
         var SKIP_RESPONSE = {};
-
-        /**
-         * PouchDB database name prefix
-         * @type    {String}
-         */
-        provider.dbNamePrefix = "modelDB";
 
         /**
          * The name of the header that contains the ID fields in the response body.
@@ -33,37 +26,6 @@
         provider.altContentLengthHeader = "X-Content-Length";
 
         /**
-         * Timeout (in ms) for pinging the target REST server
-         *
-         * @type    {Number}
-         */
-        provider.timeout = 5000;
-
-        /**
-         * Delay (in ms) for triggering another ping request.
-         *
-         * @type    {Number}
-         */
-        provider.pingDelay = 60000;
-
-        /**
-         * Get/set the username and password used for authentication.
-         *
-         * @param   {String} [username]
-         * @param   {String} [password]
-         */
-        provider.auth = function ( username, password ) {
-            if ( !username ) {
-                return auth;
-            }
-
-            auth = {
-                username: username,
-                password: password
-            };
-        };
-
-        /**
          * Get/set base URL for the RESTful API we'll be talking to
          *
          * @param   {String} [base]
@@ -77,7 +39,7 @@
             return baseUrl;
         };
 
-        provider.$get = function ( $window, $timeout, $q, $http, pouchDB ) {
+        provider.$get = function ( $q, $modelRequest, $modelDB, modelSync ) {
             /**
              * @param   {Model} model
              * @param   {String} method
@@ -85,80 +47,17 @@
              * @returns {Promise}
              */
             function createRequest ( model, method, data ) {
-                var httpPromise;
-                var deferred = $q.defer();
-                var safe = isSafeMethod( method );
-                var config = {
-                    method: method,
-                    url: model.toURL(),
-                    params: safe ? data : null,
-                    data: safe ? null : data,
-                    headers: {},
-                    timeout: createPingRequest()
-                };
+                var url = model.toURL();
+                var req = $modelRequest( url, method, data );
 
-                // FIXME This functionality has not been tested yet.
-                config.headers.__modelXHR__ = createXhrNotifier( deferred );
-
-                putAuthorizationHeader( config );
-                httpPromise = $http( config ).then( applyIdField, function ( response ) {
-                    // If the request is unsafe (what means it's going to modify some resource),
-                    // and it has failed to reach the target server, then store it for replaying
-                    // later.
-                    if ( !safe && response.status === 0 ) {
-                        return storeRequest( model, method, data );
+                return req.then( applyIdField, function ( err ) {
+                    if ( !$modelRequest.isSafe( method ) && err.status === 0 ) {
+                        return modelSync.store( url, method, data ).then(function () {
+                            return SKIP_RESPONSE;
+                        });
                     }
 
-                    return $q.reject({
-                        data: response.data,
-                        status: response.status
-                    });
-                });
-
-                deferred.resolve( httpPromise );
-                return deferred.promise;
-            }
-
-            function createPingRequest () {
-                return currPing = currPing || $http({
-                    method: "HEAD",
-                    url: provider.base(),
-                    timeout: provider.timeout
-                }).then(function () {
-                    clearPingRequest();
-                    return $q.reject( new Error( "Succesfully pinged RESTful server" ) );
-                }, function ( err ) {
-                    clearPingRequest();
-                    return err;
-                });
-            }
-
-            /**
-             * Clear the current saved ping request.
-             * Uses $timeout, however does not trigger a digest cycle.
-             */
-            function clearPingRequest () {
-                $timeout(function () {
-                    currPing = null;
-                }, provider.pingDelay, false );
-            }
-
-            /**
-             * Store a combination of model/method/data as a request in a temporary, hidden DB.
-             *
-             * @param   {Model} model
-             * @param   {String} method
-             * @param   {Object} [data]
-             * @returns {Promise}
-             */
-            function storeRequest ( model, method, data ) {
-                var updatesDB = getDB( "__updates" );
-                return updatesDB.post({
-                    model: model.toURL(),
-                    method: method,
-                    data: data
-                }).then(function () {
-                    return SKIP_RESPONSE;
+                    return $q.reject( err );
                 });
             }
 
@@ -237,7 +136,7 @@
                 var maybeThrow = function () {
                     return $q(function ( resolve, reject ) {
                         // Don't throw if a error is not available
-                        err ? reject( err ) : resolve();
+                        err ? reject( err ) : resolve( null );
                     });
                 };
 
@@ -264,34 +163,6 @@
             }
 
             /**
-             * Sets authentication headers in a HTTP configuration object.
-             *
-             * @param   {Object} config
-             */
-            function putAuthorizationHeader ( config ) {
-                var password, base64;
-                var auth = provider.auth();
-
-                if ( !auth || !auth.username ) {
-                    return;
-                }
-
-                password = auth.password == null ? "" : auth.password;
-                base64 = $window.btoa( auth.username + ":" + password );
-                config.headers.Authorization = "Basic " + base64;
-            }
-
-            /**
-             * Return a DB instance
-             *
-             * @param   {String} name
-             * @returns {PouchDB}
-             */
-            function getDB ( name ) {
-                return pouchDB( provider.dbNamePrefix + "." + name );
-            }
-
-            /**
              * @param   {String} name
              * @returns {Model}
              * @constructor
@@ -305,7 +176,7 @@
                     throw new Error( "Model name must be supplied" );
                 }
 
-                this._db = getDB( name );
+                this._db = $modelDB( name );
 
                 this._path = {
                     name: name
@@ -577,16 +448,6 @@
         }
 
         /**
-         * Detect if a string is a safe HTTP method.
-         *
-         * @param   {String} method
-         * @returns {Boolean}
-         */
-        function isSafeMethod ( method ) {
-            return /^(?:GET|HEAD)$/.test( method );
-        }
-
-        /**
          * Map function for when listing docs offline.
          * Emits them in the order they were fetched.
          *
@@ -594,40 +455,6 @@
          */
         function mapFn ( doc ) {
             emit( doc.$order );
-        }
-
-        /**
-         * Watch on progress events of a XHR and trigger promises notifications
-         *
-         * @param   {Object} deferred
-         * @returns {Function}
-         */
-        function createXhrNotifier ( deferred ) {
-            return function () {
-                return function ( xhr ) {
-                    var altHeader = provider.altContentLengthHeader;
-
-                    if ( !xhr ) {
-                        return;
-                    }
-
-                    xhr.addEventListener( "progress", function ( evt ) {
-                        var obj = {
-                            total: evt.total,
-                            loaded: evt.loaded
-                        };
-
-                        // Provide total bytes of the response with the alternative
-                        // Content-Length, when it exists in the response.
-                        if ( !evt.total ) {
-                            obj.total = +xhr.getResponseHeader( altHeader );
-                            obj.total = obj.total || 0;
-                        }
-
-                        deferred.notify( obj );
-                    });
-                };
-            };
         }
     }
 }();

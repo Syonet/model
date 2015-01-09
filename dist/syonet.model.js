@@ -8,11 +8,9 @@
 !function () {
     "use strict";
 
-    angular.module( "syonet.model" ).provider( "model", modelProvider );
+    angular.module( "syonet.model" ).provider( "$modelDB", dbProvider );
 
-    function modelProvider () {
-        var currPing, auth;
-        var baseUrl = "/";
+    function dbProvider () {
         var provider = this;
 
         /**
@@ -20,6 +18,33 @@
          * @type    {String}
          */
         provider.dbNamePrefix = "modelDB";
+
+        provider.$get = function ( pouchDB ) {
+            /**
+             * Return a PouchDB instance with a standardized name.
+             *
+             * @param   {String} name
+             * @returns {PouchDB}
+             */
+            return function ( name ) {
+                return pouchDB( provider.dbNamePrefix + "." + name );
+            };
+        };
+
+        return provider;
+    }
+}();
+!function () {
+    "use strict";
+
+    angular.module( "syonet.model" ).provider( "model", modelProvider );
+
+    function modelProvider () {
+        var baseUrl = "/";
+        var provider = this;
+
+        // Special object to determine that returning a HTTP response should be skipped
+        var SKIP_RESPONSE = {};
 
         /**
          * The name of the header that contains the ID fields in the response body.
@@ -37,37 +62,6 @@
         provider.altContentLengthHeader = "X-Content-Length";
 
         /**
-         * Timeout (in ms) for pinging the target REST server
-         *
-         * @type    {Number}
-         */
-        provider.timeout = 5000;
-
-        /**
-         * Delay (in ms) for triggering another ping request.
-         *
-         * @type    {Number}
-         */
-        provider.pingDelay = 60000;
-
-        /**
-         * Get/set the username and password used for authentication.
-         *
-         * @param   {String} [username]
-         * @param   {String} [password]
-         */
-        provider.auth = function ( username, password ) {
-            if ( !username ) {
-                return auth;
-            }
-
-            auth = {
-                username: username,
-                password: password
-            };
-        };
-
-        /**
          * Get/set base URL for the RESTful API we'll be talking to
          *
          * @param   {String} [base]
@@ -81,7 +75,7 @@
             return baseUrl;
         };
 
-        provider.$get = function ( $window, $timeout, $q, $http, pouchDB ) {
+        provider.$get = function ( $q, $modelRequest, $modelDB, modelSync ) {
             /**
              * @param   {Model} model
              * @param   {String} method
@@ -89,55 +83,18 @@
              * @returns {Promise}
              */
             function createRequest ( model, method, data ) {
-                var httpPromise;
-                var deferred = $q.defer();
-                var safe = isSafeMethod( method );
-                var config = {
-                    method: method,
-                    url: model.toURL(),
-                    params: safe ? data : null,
-                    data: safe ? null : data,
-                    headers: {},
-                    timeout: createPingRequest()
-                };
+                var url = model.toURL();
+                var req = $modelRequest( url, method, data );
 
-                // FIXME This functionality has not been tested yet.
-                config.headers.__modelXHR__ = createXhrNotifier( deferred );
+                return req.then( applyIdField, function ( err ) {
+                    if ( !$modelRequest.isSafe( method ) && err.status === 0 ) {
+                        return modelSync.store( url, method, data ).then(function () {
+                            return SKIP_RESPONSE;
+                        });
+                    }
 
-                putAuthorizationHeader( config );
-                httpPromise = $http( config ).then( applyIdField, function ( response ) {
-                    return $q.reject({
-                        data: response.data,
-                        status: response.status
-                    });
+                    return $q.reject( err );
                 });
-
-                deferred.resolve( httpPromise );
-                return deferred.promise;
-            }
-
-            function createPingRequest () {
-                return currPing = currPing || $http({
-                    method: "HEAD",
-                    url: provider.base(),
-                    timeout: provider.timeout
-                }).then(function () {
-                    clearPingRequest();
-                    return $q.reject( new Error( "Succesfully pinged RESTful server" ) );
-                }, function ( err ) {
-                    clearPingRequest();
-                    return err;
-                });
-            }
-
-            /**
-             * Clear the current saved ping request.
-             * Uses $timeout, however does not trigger a digest cycle.
-             */
-            function clearPingRequest () {
-                $timeout(function () {
-                    currPing = null;
-                }, provider.pingDelay, false );
             }
 
             /**
@@ -215,7 +172,7 @@
                 var maybeThrow = function () {
                     return $q(function ( resolve, reject ) {
                         // Don't throw if a error is not available
-                        err ? reject( err ) : resolve();
+                        err ? reject( err ) : resolve( null );
                     });
                 };
 
@@ -242,24 +199,6 @@
             }
 
             /**
-             * Sets authentication headers in a HTTP configuration object.
-             *
-             * @param   {Object} config
-             */
-            function putAuthorizationHeader ( config ) {
-                var password, base64;
-                var auth = provider.auth();
-
-                if ( !auth || !auth.username ) {
-                    return;
-                }
-
-                password = auth.password == null ? "" : auth.password;
-                base64 = $window.btoa( auth.username + ":" + password );
-                config.headers.Authorization = "Basic " + base64;
-            }
-
-            /**
              * @param   {String} name
              * @returns {Model}
              * @constructor
@@ -273,7 +212,7 @@
                     throw new Error( "Model name must be supplied" );
                 }
 
-                this._db = pouchDB( provider.dbNamePrefix + "." + name );
+                this._db = $modelDB( name );
 
                 this._path = {
                     name: name
@@ -442,6 +381,10 @@
             Model.prototype.save = function ( data ) {
                 var self = this;
                 return createRequest( self, "POST", data ).then(function ( docs ) {
+                    if ( docs === SKIP_RESPONSE ) {
+                        return data;
+                    }
+
                     return updateCache( self, docs );
                 });
             };
@@ -456,6 +399,10 @@
             Model.prototype.patch = function ( data ) {
                 var self = this;
                 return createRequest( this, "PATCH", data ).then(function ( docs ) {
+                    if ( docs === SKIP_RESPONSE ) {
+                        return data;
+                    }
+
                     return updateCache( self, docs );
                 });
             };
@@ -476,7 +423,7 @@
                 }).then(function ( cached ) {
                     return cached && updateCache( self, cached, true );
                 }).then(function () {
-                    return response;
+                    return response === SKIP_RESPONSE ? null : response;
                 });
             };
 
@@ -537,16 +484,6 @@
         }
 
         /**
-         * Detect if a string is a safe HTTP method.
-         *
-         * @param   {String} method
-         * @returns {Boolean}
-         */
-        function isSafeMethod ( method ) {
-            return /^(?:GET|HEAD)$/.test( method );
-        }
-
-        /**
          * Map function for when listing docs offline.
          * Emits them in the order they were fetched.
          *
@@ -555,41 +492,281 @@
         function mapFn ( doc ) {
             emit( doc.$order );
         }
+    }
+}();
+!function () {
+    "use strict";
+
+    angular.module( "syonet.model" ).provider( "$modelRequest", requestProvider );
+
+    function requestProvider () {
+        var auth;
+        var provider = this;
 
         /**
-         * Watch on progress events of a XHR and trigger promises notifications
+         * Get/set the timeout (in ms) for pinging the target REST server
          *
-         * @param   {Object} deferred
-         * @returns {Function}
+         * @param   {Number}
          */
-        function createXhrNotifier ( deferred ) {
-            return function () {
-                return function ( xhr ) {
-                    var altHeader = provider.altContentLengthHeader;
+        provider.timeout = 5000;
 
-                    if ( !xhr ) {
-                        return;
-                    }
+        /**
+         * Get/set the delay (in ms) for triggering another ping request.
+         *
+         * @param   {Number}
+         */
+        provider.pingDelay = 60000;
 
-                    xhr.addEventListener( "progress", function ( evt ) {
-                        var obj = {
-                            total: evt.total,
-                            loaded: evt.loaded
-                        };
+        /**
+         * Get/set the username and password used for authentication.
+         *
+         * @param   {String} [username]
+         * @param   {String} [password]
+         */
+        provider.auth = function ( username, password ) {
+            if ( !username ) {
+                return auth;
+            }
 
-                        // Provide total bytes of the response with the alternative
-                        // Content-Length, when it exists in the response.
-                        if ( !evt.total ) {
-                            obj.total = +xhr.getResponseHeader( altHeader );
-                            obj.total = obj.total || 0;
+            auth = {
+                username: username,
+                password: password
+            };
+        };
+
+        provider.$get = function ( $timeout, $q, $http, $window ) {
+            var currPing;
+
+            /**
+             * Return a URL suitable for the ping request.
+             * The returned value contains only the protocol and host, with no path.
+             *
+             * @param   {String} url
+             * @returns {String}
+             */
+            function getPingUrl ( url ) {
+                return url.replace( /^(https?:\/\/)?(.*?)\/.+$/i, "$1$2/" );
+            }
+
+            /**
+             * Create a ping request and return its promise.
+             * If it's a
+             *
+             * @param   {String} url
+             * @returns {Promise}
+             */
+            function createPingRequest ( url ) {
+                return currPing = currPing || $http({
+                    method: "HEAD",
+                    url: getPingUrl( url ),
+                    timeout: provider.timeout
+                }).then(function () {
+                    clearPingRequest();
+                    return $q.reject( new Error( "Succesfully pinged RESTful server" ) );
+                }, function ( err ) {
+                    clearPingRequest();
+                    return err;
+                });
+            }
+
+            /**
+             * Clear the current saved ping request.
+             * Uses $timeout, however does not trigger a digest cycle.
+             */
+            function clearPingRequest () {
+                $timeout(function () {
+                    currPing = null;
+                }, provider.pingDelay, false );
+            }
+
+            /**
+             * Watch on progress events of a XHR and trigger promises notifications
+             *
+             * @param   {Object} deferred
+             * @returns {Function}
+             */
+            function createXhrNotifier ( deferred ) {
+                return function () {
+                    return function ( xhr ) {
+                        var altHeader = provider.altContentLengthHeader;
+
+                        if ( !xhr ) {
+                            return;
                         }
 
-                        deferred.notify( obj );
-                    });
+                        xhr.addEventListener( "progress", function ( evt ) {
+                            var obj = {
+                                total: evt.total,
+                                loaded: evt.loaded
+                            };
+
+                            // Provide total bytes of the response with the alternative
+                            // Content-Length, when it exists in the response.
+                            if ( !evt.total ) {
+                                obj.total = +xhr.getResponseHeader( altHeader );
+                                obj.total = obj.total || 0;
+                            }
+
+                            deferred.notify( obj );
+                        });
+                    };
                 };
+            }
+
+            /**
+             * Sets authentication headers in a HTTP configuration object.
+             *
+             * @param   {Object} config
+             */
+            function putAuthorizationHeader ( config ) {
+                var password, base64;
+                var auth = provider.auth();
+
+                if ( !auth || !auth.username ) {
+                    return;
+                }
+
+                password = auth.password == null ? "" : auth.password;
+                base64 = $window.btoa( auth.username + ":" + password );
+                config.headers.Authorization = "Basic " + base64;
+            }
+
+            /**
+             * Create a request and return a promise for it.
+             *
+             * @param   {String} url
+             * @param   {String} method
+             * @param   {*} [data]
+             * @returns {Promise}
+             */
+            function createRequest ( url, method, data ) {
+                var httpPromise;
+                var deferred = $q.defer();
+                var safe = createRequest.isSafe( method );
+                var config = {
+                    method: method,
+                    url: url,
+                    params: safe ? data : null,
+                    data: safe ? null : data,
+                    headers: {},
+                    timeout: createPingRequest( url )
+                };
+
+                // FIXME This functionality has not been tested yet.
+                config.headers.__modelXHR__ = createXhrNotifier( deferred );
+
+                putAuthorizationHeader( config );
+                httpPromise = $http( config ).then( null, function ( response ) {
+                    return $q.reject({
+                        data: response.data,
+                        status: response.status
+                    });
+                });
+
+                deferred.resolve( httpPromise );
+                return deferred.promise;
+            }
+
+            /**
+             * Detect if a string is a safe HTTP method.
+             *
+             * @param   {String} method
+             * @returns {Boolean}
+             */
+            createRequest.isSafe = function isSafe ( method ) {
+                return /^(?:GET|HEAD)$/.test( method );
             };
-        }
+
+            // Create a shortcut for the auth method
+            createRequest.auth = provider.auth;
+
+            // Finally return our super powerful function!
+            return createRequest;
+        };
+
+        return provider;
     }
+}();
+!function () {
+    "use strict";
+
+    angular.module( "syonet.model" ).factory( "modelSync", modelSyncService );
+
+    function modelSyncService ( $modelRequest, $modelDB ) {
+        var UPDATE_DB_NAME = "__updates";
+        var db = $modelDB( UPDATE_DB_NAME );
+
+        function sync () {
+            if ( sync.$$running ) {
+                return;
+            }
+
+            sync.$$running = true;
+            return db.allDocs({
+                include_docs: true
+            }).then(function ( docs ) {
+                var promises = [];
+
+                docs.rows.forEach(function ( row ) {
+                    // Reconstitute model and try to send the request again
+                    var promise = $modelRequest(
+                        row.doc.model,
+                        row.doc.method,
+                        row.doc.data
+                    );
+                    promises.push( promise );
+                });
+
+                return $q.all( promises );
+            });
+        }
+
+        sync.$$events = {};
+
+        /**
+         * Store a combination of model/method/data.
+         *
+         * @param   {String} model      The model URL
+         * @param   {String} method     The HTTP method
+         * @param   {Object} [data]     Optional data
+         * @returns {Promise}
+         */
+        sync.store = function ( url, method, data ) {
+            return db.post({
+                model: url,
+                method: method,
+                data: data
+            });
+        };
+
+        /**
+         * Add a event to the synchronization object
+         *
+         * @param   {String} event
+         * @param   {Function} listener
+         * @returns void
+         */
+        sync.on = function ( event, listener ) {
+            sync.$$events[ event ] = sync.$$events[ event ] || [];
+            sync.$$events[ event ].push( listener );
+        };
+
+        /**
+         * Emit a event in the synchronization object
+         *
+         * @param   {String} event
+         * @returns void
+         */
+        sync.emit = function ( event ) {
+            var listeners = sync.$$events[ event ] || [];
+            listeners.forEach(function ( listener ) {
+                listener();
+            });
+        };
+
+        return sync;
+    }
+    modelSyncService.$inject = ["$modelRequest", "$modelDB"];
 }();
 !function () {
     "use strict";

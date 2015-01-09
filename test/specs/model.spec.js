@@ -1,32 +1,19 @@
-describe( "Model", function () {
+describe( "model", function () {
     "use strict";
 
-    var injector, $rootScope, $httpBackend, pouchDB;
+    var injector, $rootScope, $httpBackend, pouchDB, model;
     var expect = chai.expect;
 
-    beforeEach( module( "syonet.model", function ( modelProvider ) {
-        // Decrease request timeout
-        modelProvider.timeout = 100;
-    }));
+    beforeEach( module( "syonet.model" ) );
 
     beforeEach( inject(function ( $injector ) {
-        var model;
+        testHelpers( $injector );
+
         injector = $injector;
         $rootScope = $injector.get( "$rootScope" );
         $httpBackend = $injector.get( "$httpBackend" );
+        model = $injector.get( "model" );
         pouchDB = $injector.get( "pouchDB" );
-
-        // Ping request backend definition
-        this.ping = $httpBackend.whenHEAD( "/" ).respond( 200 );
-
-        this.__defineGetter__( "model", function () {
-            model = model || $injector.get( "model" );
-            return model;
-        });
-
-        this.flush = function () {
-            $httpBackend.flush();
-        };
     }));
 
     afterEach(function () {
@@ -35,7 +22,7 @@ describe( "Model", function () {
     });
 
     afterEach(function () {
-        return this.model( "foo" )._db.destroy();
+        return model( "foo" )._db.destroy();
     });
 
     afterEach(function () {
@@ -43,7 +30,7 @@ describe( "Model", function () {
     });
 
     it( "should be created with provided path", function () {
-        var foo = this.model( "foo" );
+        var foo = model( "foo" );
 
         expect( foo._path ).to.eql({ name: "foo" });
     });
@@ -56,34 +43,17 @@ describe( "Model", function () {
         };
 
         $httpBackend.expectGET( "/foo/bar" ).respond( 200, data );
-        promise = this.model( "foo" ).get( "bar" );
-        this.flush();
+        promise = model( "foo" ).get( "bar" );
+        testHelpers.flush();
 
         return expect( promise ).to.eventually.not.have.property( "_blah" );
     });
-
-    it( "should timeout requests", function ( done ) {
-        var promise;
-
-        this.ping.respond( 0 );
-        $httpBackend.expectGET( "/foo" ).respond( 200, {} );
-        promise = this.model( "foo" ).list();
-
-        setTimeout(function () {
-            $httpBackend.flush();
-            expect( promise ).to.eventually.be.rejectedWith( sinon.match({
-                status: 0
-            })).then( done, done );
-        }, 100 );
-    });
-
-
 
     // ---------------------------------------------------------------------------------------------
 
     describe( ".id()", function () {
         it( "should return the ID", function () {
-            var foo = this.model( "foo" ).id( "bar" );
+            var foo = model( "foo" ).id( "bar" );
             expect( foo.id() ).to.equal( "bar" );
         });
     });
@@ -92,19 +62,19 @@ describe( "Model", function () {
 
     describe( ".id( value )", function () {
         it( "should return new model instance", function () {
-            var foo = this.model( "foo" );
+            var foo = model( "foo" );
             expect( foo.id( "bar" ) ).to.not.equal( foo );
         });
 
         it( "should keep same parent tree", function () {
-            var baz = this.model( "foo" ).id( "bar" ).model( "baz" );
+            var baz = model( "foo" ).id( "bar" ).model( "baz" );
             var qux = baz.id( "qux" );
 
             expect( qux._parent ).to.equal( baz._parent );
         });
 
         it( "should set the ID into the path segment", function () {
-            var foo = this.model( "foo" ).id( "bar" );
+            var foo = model( "foo" ).id( "bar" );
             expect( foo._path ).to.have.property( "id", "bar" );
         });
     });
@@ -114,14 +84,14 @@ describe( "Model", function () {
     describe( ".model()", function () {
         it( "should require new model name", function () {
             var wrapper = function () {
-                return this.model( "foo" ).model();
+                return model( "foo" ).model();
             };
 
-            expect( wrapper ).to.throw;
+            expect( wrapper ).to.throw( Error, "Model name must be supplied" );
         });
 
         it( "should create new model with nested path", function () {
-            var bar = this.model( "foo" ).model( "bar" );
+            var bar = model( "foo" ).model( "bar" );
 
             expect( bar._parent._path ).to.eql({ name: "foo" });
             expect( bar._path ).to.eql({ name: "bar" });
@@ -132,49 +102,13 @@ describe( "Model", function () {
 
     describe( ".toURL()", function () {
         it( "should build URL for every parent model", function () {
-            var element = this.model( "foo" ).id( "bar" ).model( "baz" ).id( "qux" );
+            var element = model( "foo" ).id( "bar" ).model( "baz" ).id( "qux" );
             expect( element.toURL() ).to.equal( "/foo/bar/baz/qux" );
         });
 
         it( "should join IDs that are arrays with a comma", function () {
-            var element = this.model( "foo" ).id([ "bar", "baz", "qux" ]);
+            var element = model( "foo" ).id([ "bar", "baz", "qux" ]);
             expect( element.toURL() ).to.equal( "/foo/bar,baz,qux" );
-        });
-    });
-
-    // ---------------------------------------------------------------------------------------------
-
-    describe( ".auth( username, password )", function () {
-        it( "should use basic authentication", function () {
-            var promise;
-
-            $httpBackend.expectGET( "/foo/bar", function ( headers ) {
-                return headers.Authorization === "Basic " + btoa( "foo:bar" );
-            }).respond( 200, {
-                foo: "bar"
-            });
-
-            this.model.auth( "foo", "bar" );
-            promise = this.model( "foo" ).get( "bar" );
-
-            this.flush();
-            return promise;
-        });
-
-        it( "should allow usage of empty password", function () {
-            var promise;
-
-            $httpBackend.expectGET( "/foo/bar", function ( headers ) {
-                return headers.Authorization === "Basic " + btoa( "foo:" );
-            }).respond( 200, {
-                foo: "bar"
-            });
-
-            this.model.auth( "foo" );
-            promise = this.model( "foo" ).get( "bar" );
-
-            this.flush();
-            return promise;
         });
     });
 
@@ -182,7 +116,7 @@ describe( "Model", function () {
 
     describe( ".rev()", function () {
         it( "should reject when invoked in a collection", function () {
-            var foo = this.model( "foo" );
+            var foo = model( "foo" );
             var getRev = function () {
                 return foo.rev();
             };
@@ -191,13 +125,13 @@ describe( "Model", function () {
         });
 
         it( "should resolve with null when no revision found", function () {
-            var promise = this.model( "foo" ).id( "bar" ).rev();
+            var promise = model( "foo" ).id( "bar" ).rev();
             return expect( promise ).to.become( null );
         });
 
         it( "should return the current revision when found", function () {
             var rev;
-            var foo = this.model( "foo" );
+            var foo = model( "foo" );
 
             var promise = foo._db.put({
                 foo: "bar"
@@ -225,8 +159,8 @@ describe( "Model", function () {
 
                 $httpBackend.expectGET( "/foo" ).respond( data );
 
-                promise = this.model( "foo" ).list();
-                this.flush();
+                promise = model( "foo" ).list();
+                testHelpers.flush();
 
                 return expect( promise ).to.eventually.have.deep.property( "[0].foo", data.foo );
             });
@@ -240,10 +174,10 @@ describe( "Model", function () {
 
                 $httpBackend.expectGET( "/foo?bar=baz" ).respond( data );
 
-                promise = this.model( "foo" ).list({
+                promise = model( "foo" ).list({
                     bar: "baz"
                 });
-                this.flush();
+                testHelpers.flush();
 
                 return expect( promise ).to.eventually.have.deep.property( "[0].foo", data.foo );
             });
@@ -251,7 +185,7 @@ describe( "Model", function () {
             it( "should return cached array when receiving HTTP status 0", inject(function ( $q ) {
                 var promise;
                 var data = { foo: "bar" };
-                var foo = this.model( "foo" );
+                var foo = model( "foo" );
                 var stub = sinon.stub( foo._db, "query" ).withArgs( sinon.match.func, sinon.match({
                     include_docs: true
                 }));
@@ -265,7 +199,7 @@ describe( "Model", function () {
                 $httpBackend.expectGET( "/foo" ).respond( 0, null );
                 promise = foo.list();
 
-                this.flush();
+                testHelpers.flush();
                 return promise.then(function ( value ) {
                     expect( stub ).to.have.been.called;
                     expect( value ).to.eql([ data ]);
@@ -274,7 +208,7 @@ describe( "Model", function () {
 
             it( "should return cached array in the original order", function () {
                 var promise;
-                var foo = this.model( "foo" );
+                var foo = model( "foo" );
                 var data = [{
                     id: 5,
                     foo: "bar"
@@ -288,11 +222,11 @@ describe( "Model", function () {
 
                 $httpBackend.expectGET( "/foo" ).respond( data );
                 foo.list();
-                this.flush();
+                testHelpers.flush();
 
                 $httpBackend.expectGET( "/foo" ).respond( 0, null );
                 promise = foo.list();
-                this.flush();
+                testHelpers.flush();
 
                 expect( promise ).to.eventually.have.deep.property( "[0].id", 5 );
                 expect( promise ).to.eventually.have.deep.property( "[1].id", 3 );
@@ -303,7 +237,7 @@ describe( "Model", function () {
 
             it( "should wipe previous cached values on another request", function () {
                 var promise;
-                var foo = this.model( "foo" );
+                var foo = model( "foo" );
                 var data = [{
                     id: 5,
                     foo: "bar"
@@ -318,7 +252,7 @@ describe( "Model", function () {
                 // First request carries all elements
                 $httpBackend.expectGET( "/foo" ).respond( data );
                 promise = foo.list();
-                $httpBackend.flush();
+                testHelpers.flush();
 
                 return promise.then(function () {
                     // Second request removes one of them
@@ -343,19 +277,19 @@ describe( "Model", function () {
 
             it( "should not use cached value if error happens and not offline", function () {
                 var promise;
-                var foo = this.model( "foo" );
+                var foo = model( "foo" );
                 var data = [{
                     id: "foo"
                 }];
                 $httpBackend.expectGET( "/foo" ).respond( data );
                 foo.list();
-                this.flush();
+                testHelpers.flush();
 
                 $httpBackend.expectGET( "/foo" ).respond( 500, {
                     err: 1
                 });
                 promise = foo.list();
-                this.flush();
+                testHelpers.flush();
 
                 return expect( promise ).to.be.rejected;
             });
@@ -364,7 +298,7 @@ describe( "Model", function () {
                 var promise;
 
                 $httpBackend.expectGET( "/foo" ).respond( 0, null );
-                promise = this.model( "foo" ).list();
+                promise = model( "foo" ).list();
                 $httpBackend.flush();
 
                 return expect( promise ).to.be.rejected;
@@ -375,7 +309,12 @@ describe( "Model", function () {
 
         describe( "on an element", function () {
             it( "should require collection to be supplied", function () {
-                expect( this.model( "foo" ).id( "bar" ).list ).to.throw;
+                var msg = "Can't invoke .list() in a element without specifying " +
+                          "child collection name.";
+                var listFn = function () {
+                    return model( "foo" ).id( "bar" ).list();
+                };
+                expect( listFn ).to.throw( Error, msg );
             });
 
             it( "should list elements from child collection", function () {
@@ -386,8 +325,8 @@ describe( "Model", function () {
                 };
 
                 $httpBackend.expectGET( "/foo/bar/baz" ).respond( 200, [ data ] );
-                promise = this.model( "foo" ).id( "bar" ).list( "baz" );
-                this.flush();
+                promise = model( "foo" ).id( "bar" ).list( "baz" );
+                testHelpers.flush();
 
                 return expect( promise ).to.eventually.have.deep.property( "[0].foo", "bar" );
             });
@@ -400,10 +339,10 @@ describe( "Model", function () {
                 };
 
                 $httpBackend.expectGET( "/foo/bar/baz?qux=quux" ).respond( 200, [ data ] );
-                promise = this.model( "foo" ).id( "bar" ).list( "baz", {
+                promise = model( "foo" ).id( "bar" ).list( "baz", {
                     qux: "quux"
                 });
-                this.flush();
+                testHelpers.flush();
 
                 return expect( promise ).to.eventually.have.deep.property( "[0].foo", "bar" );
             });
@@ -415,7 +354,14 @@ describe( "Model", function () {
     describe( ".get()", function () {
         describe( "on a collection", function () {
             it( "should require ID to be supplied", function () {
-                expect( this.model( "foo" ).get ).to.throw;
+                var msg = "Can't invoke .get() in a collection " +
+                          "without specifying child element ID.";
+
+                var getFn = function () {
+                    return model( "foo" ).get();
+                };
+
+                expect( getFn ).to.throw( Error, msg );
             });
         });
 
@@ -428,8 +374,8 @@ describe( "Model", function () {
 
                 $httpBackend.expectGET( "/foo/bar" ).respond( data );
 
-                promise = this.model( "foo" ).get( "bar" );
-                this.flush();
+                promise = model( "foo" ).get( "bar" );
+                testHelpers.flush();
 
                 return expect( promise ).to.eventually.have.property( "foo", data.foo );
             });
@@ -437,7 +383,7 @@ describe( "Model", function () {
             it( "should return cached value when receiving HTTP status 0", inject(function ( $q ) {
                 var promise;
                 var data = { foo: "bar" };
-                var foobar = this.model( "foo" ).id( "bar" );
+                var foobar = model( "foo" ).id( "bar" );
                 var stub = sinon.stub( foobar._db, "get" ).withArgs( "bar" );
 
                 stub.returns( $q.when({
@@ -447,8 +393,7 @@ describe( "Model", function () {
                 $httpBackend.expectGET( "/foo/bar" ).respond( 0, null );
                 promise = foobar.get();
 
-                // TODO find out why we can't use a timeout here
-                this.flush( false );
+                testHelpers.flush();
                 return promise.then(function ( value ) {
                     expect( stub ).to.have.been.called;
                     expect( value ).to.eql( data );
@@ -457,19 +402,19 @@ describe( "Model", function () {
 
             it( "should not use cached value if error happens and not offline", function () {
                 var promise;
-                var foobar = this.model( "foo" ).id( "bar" );
+                var foobar = model( "foo" ).id( "bar" );
                 var data = {
                     foo: "bar"
                 };
                 $httpBackend.expectGET( "/foo/bar" ).respond( data );
                 foobar.get();
-                this.flush();
+                testHelpers.flush();
 
                 $httpBackend.expectGET( "/foo/bar" ).respond( 500, {
                     err: 1
                 });
                 promise = foobar.get();
-                this.flush();
+                testHelpers.flush();
 
                 return expect( promise ).to.be.rejected;
             });
@@ -487,8 +432,8 @@ describe( "Model", function () {
             }];
 
             $httpBackend.expectPOST( "/foo" ).respond( data );
-            promise = this.model( "foo" ).save( data );
-            this.flush();
+            promise = model( "foo" ).save( data );
+            testHelpers.flush();
 
             return expect( promise ).to.eventually.have.deep.property( "[0].foo", data.foo );
         });
@@ -500,8 +445,8 @@ describe( "Model", function () {
             };
 
             $httpBackend.expectPOST( "/foo/bar" ).respond( data );
-            promise = this.model( "foo" ).id( "bar" ).save( data );
-            this.flush();
+            promise = model( "foo" ).id( "bar" ).save( data );
+            testHelpers.flush();
 
             return expect( promise ).to.eventually.have.property( "foo", data.foo );
         });
@@ -513,8 +458,8 @@ describe( "Model", function () {
             };
 
             $httpBackend.expectPOST( "/foo" ).respond( 0, null );
-            promise = this.model( "foo" ).save( data );
-            $httpBackend.flush();
+            promise = model( "foo" ).save( data );
+            testHelpers.flush();
 
             expect( promise ).to.eventually.equal( data );
 
@@ -545,8 +490,8 @@ describe( "Model", function () {
             }];
 
             $httpBackend.expectPATCH( "/foo" ).respond( data );
-            promise = this.model( "foo" ).patch( data );
-            this.flush();
+            promise = model( "foo" ).patch( data );
+            testHelpers.flush();
 
             return expect( promise ).to.eventually.have.deep.property( "[0].foo", data[ 0 ].foo );
         });
@@ -556,8 +501,8 @@ describe( "Model", function () {
             var data = { foo: "bar" };
 
             $httpBackend.expectPATCH( "/foo/bar" ).respond( data );
-            promise = this.model( "foo" ).id( "bar" ).patch( data );
-            this.flush();
+            promise = model( "foo" ).id( "bar" ).patch( data );
+            testHelpers.flush();
 
             return expect( promise ).to.eventually.have.property( "foo", data.foo );
         });
@@ -569,7 +514,7 @@ describe( "Model", function () {
             }];
 
             $httpBackend.expectPATCH( "/foo" ).respond( 0, null );
-            promise = this.model( "foo" ).patch( data );
+            promise = model( "foo" ).patch( data );
             $httpBackend.flush();
 
             expect( promise ).to.eventually.equal( data );
@@ -597,8 +542,8 @@ describe( "Model", function () {
             var promise;
             $httpBackend.expectDELETE( "/foo" ).respond( 204 );
 
-            promise = this.model( "foo" ).remove();
-            this.flush();
+            promise = model( "foo" ).remove();
+            testHelpers.flush();
 
             return expect( promise ).to.eventually.be.undefined;
         });
@@ -607,8 +552,8 @@ describe( "Model", function () {
             var promise;
             $httpBackend.expectDELETE( "/foo/bar" ).respond( 204 );
 
-            promise = this.model( "foo" ).id( "bar" ).remove();
-            this.flush();
+            promise = model( "foo" ).id( "bar" ).remove();
+            testHelpers.flush();
 
             return expect( promise ).to.eventually.be.undefined;
         });
@@ -617,8 +562,8 @@ describe( "Model", function () {
             var promise;
 
             $httpBackend.expectDELETE( "/foo" ).respond( 0, null );
-            promise = this.model( "foo" ).remove();
-            $httpBackend.flush();
+            promise = model( "foo" ).remove();
+            testHelpers.flush();
 
             expect( promise ).to.eventually.equal( null );
 

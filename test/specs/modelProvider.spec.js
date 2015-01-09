@@ -1,4 +1,4 @@
-describe( "Model Provider", function () {
+describe( "modelProvider", function () {
     "use strict";
 
     var $rootScope, $httpBackend, provider, model;
@@ -17,33 +17,13 @@ describe( "Model Provider", function () {
         $httpBackend = $injector.get( "$httpBackend" );
         model = $injector.get( "model" );
 
-        // Ping request backend definition
-        this.ping = $httpBackend.whenHEAD( "/" ).respond( 200 );
-
-        this.flush = function () {
-            setTimeout(function () {
-                $httpBackend.flush( null );
-            });
-        };
+        testHelpers( $injector );
     }));
 
     afterEach(function () {
         $httpBackend.verifyNoOutstandingExpectation( false );
         $httpBackend.verifyNoOutstandingRequest( false );
     });
-
-    describe( ".dbNamePrefix", function () {
-        it( "should be the prefix of the model DB", function () {
-            var promise;
-
-            provider.dbNamePrefix = "model";
-            promise = model( "foo" )._db.info();
-
-            return expect( promise ).to.eventually.have.property( "db_name", "model.foo" );
-        });
-    });
-
-    // ---------------------------------------------------------------------------------------------
 
     describe( ".idFieldHeader", function () {
         it( "should be used to determine the ID fields in the response headers", function () {
@@ -57,7 +37,7 @@ describe( "Model Provider", function () {
                 "X-Id": "baz"
             });
             promise = model( "foo" ).get( "bar" );
-            this.flush();
+            testHelpers.flush();
 
             return expect( promise ).to.eventually.have.property( "_id", "qux" );
         });
@@ -76,48 +56,4 @@ describe( "Model Provider", function () {
         });
     });
 
-    // ---------------------------------------------------------------------------------------------
-
-    describe( ".timeout", function () {
-        it( "should define the timeout for pinging the server", inject(function ( $http ) {
-            provider.timeout = 123;
-            model( "foo" ).list();
-
-            expect( $http ).to.have.been.calledWithMatch({
-                method: "HEAD",
-                timeout: 123
-            });
-
-            this.flush();
-        }));
-    });
-
-    // ---------------------------------------------------------------------------------------------
-
-    describe( ".pingDelay", function () {
-        var $http, $timeout;
-        beforeEach( inject(function ( _$http_, _$timeout_ ) {
-            $http = _$http_;
-            $timeout = _$timeout_;
-        }));
-
-        it( "should not retrigger ping request before ping delay has passed", function () {
-            $http = $http.withArgs( sinon.match({
-                method: "HEAD"
-            }));
-
-            $httpBackend.whenGET( "/foo" ).respond( [] );
-
-            model( "foo" ).list();
-            model( "foo" ).list();
-
-            expect( $http ).to.have.callCount( 1 );
-            $httpBackend.flush();
-            $timeout.flush();
-
-            model( "foo" ).list();
-            expect( $http ).to.have.callCount( 2 );
-            $httpBackend.flush();
-        });
-    });
 });
