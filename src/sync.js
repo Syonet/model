@@ -3,7 +3,7 @@
 
     angular.module( "syonet.model" ).factory( "modelSync", modelSyncService );
 
-    function modelSyncService ( $modelRequest, $modelDB ) {
+    function modelSyncService ( $q, $modelRequest, $modelDB ) {
         var UPDATE_DB_NAME = "__updates";
         var db = $modelDB( UPDATE_DB_NAME );
 
