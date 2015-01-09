@@ -1,4 +1,4 @@
-describe.only( "modelSync", function () {
+describe( "modelSync", function () {
     "use strict";
 
     var $q, $httpBackend, db, sync, model, req;
