@@ -718,9 +718,13 @@
                 });
 
                 return $q.all( promises );
-            }).then(function () {
+            }).then(function ( values ) {
                 clear();
-                sync.emit( "success" );
+
+                // Don't emit if there were no resolved values
+                if ( values.length ) {
+                    sync.emit( "success" );
+                }
             }, function ( err ) {
                 clear();
 

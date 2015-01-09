@@ -66,6 +66,13 @@ describe.only( "modelSync", function () {
         expect( sync() ).to.be.undefined;
     });
 
+    it( "should not emit success event if no request was stored", function () {
+        var spy = sinon.spy( sync, "emit" );
+        return sync().then(function () {
+            expect( spy ).to.not.have.been.called;
+        });
+    });
+
     // ---------------------------------------------------------------------------------------------
 
     describe( ".store( url, method, data )", function () {
