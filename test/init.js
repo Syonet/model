@@ -14,12 +14,17 @@ if ( !proto.bind ) {
 function testHelpers ( $injector ) {
     var $timeout = $injector.get( "$timeout" );
     var $httpBackend = $injector.get( "$httpBackend" );
+    var $rootScope = $injector.get( "$rootScope" );
 
     // Ping request backend definition
     testHelpers.ping = $httpBackend.whenHEAD( "/" ).respond( 200 );
 
     testHelpers.timeout = function () {
         $timeout.flush();
+    };
+
+    testHelpers.digest = function ( timeout ) {
+        timeout ? setTimeout( $rootScope.$apply ) : $rootScope.$apply();
     };
 
     testHelpers.flush = function ( timeout ) {

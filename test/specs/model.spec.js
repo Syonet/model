@@ -144,6 +144,20 @@ describe( "model", function () {
 
             return promise;
         });
+
+        it( "should pass through errors except unexistent revisions", function () {
+            var err = new Error();
+            var foobar = model( "foo" ).id( "bar" );
+
+            inject(function ( $q ) {
+                sinon.stub( foobar._db, "get", function () {
+                    return $q.reject( err );
+                });
+            });
+
+            testHelpers.digest( true );
+            return expect( foobar.rev() ).to.be.rejectedWith( err );
+        });
     });
 
     // ---------------------------------------------------------------------------------------------
