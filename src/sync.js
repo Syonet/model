@@ -29,7 +29,19 @@
                 });
 
                 return $q.all( promises );
+            }).then(function () {
+                clear();
+                sync.emit( "success" );
+            }, function ( err ) {
+                clear();
+
+                // Pass the error to the callbacks whatever it is
+                sync.emit( "error", err );
             });
+
+            function clear () {
+                sync.$$running = false;
+            }
         }
 
         sync.$$events = {};
@@ -69,9 +81,11 @@
          * @returns void
          */
         sync.emit = function ( event ) {
+            var args = [].slice.call( arguments, 1 );
             var listeners = sync.$$events[ event ] || [];
+
             listeners.forEach(function ( listener ) {
-                listener();
+                listener.apply( null, args );
             });
         };
 
