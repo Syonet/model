@@ -49,7 +49,7 @@
         /**
          * Store a combination of model/method/data.
          *
-         * @param   {String} model      The model URL
+         * @param   {String} url        The model URL
          * @param   {String} method     The HTTP method
          * @param   {Object} [data]     Optional data
          * @returns {Promise}
