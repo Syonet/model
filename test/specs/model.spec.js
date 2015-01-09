@@ -133,7 +133,7 @@ describe( "model", function () {
             var rev;
             var foo = model( "foo" );
 
-            var promise = foo._db.put({
+            return foo._db.put({
                 foo: "bar"
             }, "bar" ).then(function ( doc ) {
                 rev = doc.rev;
@@ -141,8 +141,6 @@ describe( "model", function () {
             }).then(function ( rev2 ) {
                 expect( rev ).to.equal( rev2 );
             });
-
-            return promise;
         });
 
         it( "should pass through errors except unexistent revisions", function () {
