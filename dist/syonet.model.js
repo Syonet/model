@@ -692,7 +692,7 @@
 
     angular.module( "syonet.model" ).factory( "modelSync", modelSyncService );
 
-    function modelSyncService ( $modelRequest, $modelDB ) {
+    function modelSyncService ( $q, $modelRequest, $modelDB ) {
         var UPDATE_DB_NAME = "__updates";
         var db = $modelDB( UPDATE_DB_NAME );
 
@@ -718,7 +718,19 @@
                 });
 
                 return $q.all( promises );
+            }).then(function () {
+                clear();
+                sync.emit( "success" );
+            }, function ( err ) {
+                clear();
+
+                // Pass the error to the callbacks whatever it is
+                sync.emit( "error", err );
             });
+
+            function clear () {
+                sync.$$running = false;
+            }
         }
 
         sync.$$events = {};
@@ -726,7 +738,7 @@
         /**
          * Store a combination of model/method/data.
          *
-         * @param   {String} model      The model URL
+         * @param   {String} url        The model URL
          * @param   {String} method     The HTTP method
          * @param   {Object} [data]     Optional data
          * @returns {Promise}
@@ -758,15 +770,17 @@
          * @returns void
          */
         sync.emit = function ( event ) {
+            var args = [].slice.call( arguments, 1 );
             var listeners = sync.$$events[ event ] || [];
+
             listeners.forEach(function ( listener ) {
-                listener();
+                listener.apply( null, args );
             });
         };
 
         return sync;
     }
-    modelSyncService.$inject = ["$modelRequest", "$modelDB"];
+    modelSyncService.$inject = ["$q", "$modelRequest", "$modelDB"];
 }();
 !function () {
     "use strict";

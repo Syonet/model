@@ -1,11 +1,21 @@
 describe.only( "modelSync", function () {
     "use strict";
 
-    var db, sync;
+    var $q, $httpBackend, db, sync, model, req;
 
-    beforeEach( module( "syonet.model" ) );
+    beforeEach( module( "syonet.model", function ( $provide ) {
+        $provide.decorator( "$modelRequest", function ( $q ) {
+            return req = sinon.stub().returns( $q.when( true ) );
+        });
+    }));
+
     beforeEach( inject(function ( $injector ) {
+        testHelpers( $injector );
+
+        $q = $injector.get( "$q" );
+        $httpBackend = $injector.get( "$httpBackend" );
         db = $injector.get( "$modelDB" )( "__updates" );
+        model = $injector.get( "model" );
         sync = $injector.get( "modelSync" );
     }));
 
@@ -20,6 +30,40 @@ describe.only( "modelSync", function () {
 
         // Event with listeners should call them
         expect( spy ).to.have.been.calledWith( "bar" );
+    });
+
+    it( "should retrigger each persisted request and trigger success event", function () {
+        var spy = sinon.spy( sync, "emit" );
+        var stores = [
+            sync.store( "/", "POST" ),
+            sync.store( "/foo", "PATCH" )
+        ];
+
+        return $q.all( stores ).then( sync ).then(function () {
+            expect( req ).to.have.been.calledWith( "/", "POST" );
+            expect( req ).to.have.been.calledWith( "/foo", "PATCH" );
+            expect( spy ).to.have.been.calledWith( "success" );
+        });
+    });
+
+    it( "should trigger error event with the promise rejection cause", function () {
+        var spy = sinon.spy( sync, "emit" );
+        var stores = [
+            sync.store( "/", "POST" ),
+            sync.store( "/foo", "PATCH" )
+        ];
+
+        // Make the request service return a rejected promise
+        req.returns( $q.reject( "foo" ) );
+
+        return $q.all( stores ).then( sync ).then(function () {
+            expect( spy ).to.have.been.calledWith( "error", "foo" );
+        });
+    });
+
+    it( "should not allow two synchronizations to overlap", function () {
+        expect( sync().then ).to.be.a( "function" );
+        expect( sync() ).to.be.undefined;
     });
 
     // ---------------------------------------------------------------------------------------------
