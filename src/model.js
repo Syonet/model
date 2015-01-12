@@ -161,7 +161,9 @@
                     throw new Error( "Model name must be supplied" );
                 }
 
-                this._db = $modelDB( name );
+                this.__defineGetter__( "_db", function () {
+                    return $modelDB( name );
+                });
 
                 this._path = {
                     name: name
