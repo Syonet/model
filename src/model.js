@@ -4,7 +4,6 @@
     angular.module( "syonet.model" ).provider( "model", modelProvider );
 
     function modelProvider () {
-        var baseUrl = "/";
         var provider = this;
 
         // Special object to determine that returning a HTTP response should be skipped
@@ -25,21 +24,7 @@
          */
         provider.altContentLengthHeader = "X-Content-Length";
 
-        /**
-         * Get/set base URL for the RESTful API we'll be talking to
-         *
-         * @param   {String} [base]
-         */
-        provider.base = function ( base ) {
-            if ( base == null ) {
-                return baseUrl;
-            }
-
-            baseUrl = base;
-            return baseUrl;
-        };
-
-        provider.$get = function ( $q, $modelRequest, $modelDB, modelSync ) {
+        provider.$get = function ( $q, $modelConfig, $modelRequest, $modelDB, modelSync ) {
             /**
              * @param   {Model} model
              * @param   {String} method
@@ -176,7 +161,9 @@
                     throw new Error( "Model name must be supplied" );
                 }
 
-                this._db = $modelDB( name );
+                this.__defineGetter__( "_db", function () {
+                    return $modelDB( name );
+                });
 
                 this._path = {
                     name: name
@@ -263,8 +250,7 @@
                     path = "/" + next._path.name + ( id ? "/" + id : "" ) + path;
                     next = next._parent;
                 } while ( next );
-
-                return fixDoubleSlashes( provider.base() + path );
+                return fixDoubleSlashes( Model.base() + path );
             };
 
             /**
@@ -391,9 +377,36 @@
                 });
             };
 
+            /**
+             * Get/set base URL for the RESTful API we'll be talking to
+             *
+             * @param   {String} [base]
+             */
+            Model.base = function ( base ) {
+                var deferred = $q.defer();
+                var cfg = $modelConfig.get();
+                if ( base == null ) {
+                    return cfg.baseUrl;
+                }
+
+                // No need to re-save the configuration if URL didn't change
+                if ( cfg.baseUrl !== base ) {
+                    // Clear all our DBs upon change of the base URL, but only if this isn't the
+                    // first time using model
+                    deferred.resolve( cfg.baseUrl && $modelDB.clear() );
+
+                    cfg.baseUrl = base;
+                    $modelConfig.set( cfg );
+                }
+
+                return deferred.promise;
+            };
+
             // Supply provider methods to the service layer
             Model.auth = provider.auth;
-            Model.base = provider.base;
+
+            // Initialize base url by default with "/"
+            Model.base( Model.base() || "/" );
 
             return Model;
         };
