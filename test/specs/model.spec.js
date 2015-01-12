@@ -1,10 +1,12 @@
 describe( "model", function () {
     "use strict";
 
-    var injector, $rootScope, $httpBackend, pouchDB, model;
+    var injector, $rootScope, $httpBackend, pouchDB, provider, model;
     var expect = chai.expect;
 
-    beforeEach( module( "syonet.model" ) );
+    beforeEach( module( "syonet.model", function ( modelProvider ) {
+        provider = modelProvider;
+    }));
 
     beforeEach( inject(function ( $injector ) {
         testHelpers( $injector );
@@ -16,10 +18,12 @@ describe( "model", function () {
         pouchDB = $injector.get( "pouchDB" );
     }));
 
-    afterEach(function () {
+    afterEach( inject(function ( $window ) {
+        $window.localStorage.clear();
+
         $httpBackend.verifyNoOutstandingExpectation( false );
         $httpBackend.verifyNoOutstandingRequest( false );
-    });
+    }));
 
     afterEach(function () {
         return model( "foo" )._db.destroy();
@@ -47,6 +51,39 @@ describe( "model", function () {
         testHelpers.flush();
 
         return expect( promise ).to.eventually.not.have.property( "_blah" );
+    });
+
+    // ---------------------------------------------------------------------------------------------
+
+    describe( ".idFieldHeader", function () {
+        it( "should be used to determine the ID fields in the response headers", function () {
+            var promise;
+
+            provider.idFieldHeader = "X-Id";
+
+            $httpBackend.expectGET( "/foo/bar" ).respond( 200, {
+                baz: "qux"
+            }, {
+                "X-Id": "baz"
+            });
+            promise = model( "foo" ).get( "bar" );
+            testHelpers.flush();
+
+            return expect( promise ).to.eventually.have.property( "_id", "qux" );
+        });
+    });
+
+    // ---------------------------------------------------------------------------------------------
+
+    describe( ".base()", function () {
+        it( "should be used as the base URL for requests", function () {
+            model.base( "http://foo/api" );
+            expect( model( "foo" ).toURL() ).to.equal( "http://foo/api/foo" );
+        });
+
+        it( "should return the base URL for requests", function () {
+            expect( model.base() ).to.equal( "/" );
+        });
     });
 
     // ---------------------------------------------------------------------------------------------

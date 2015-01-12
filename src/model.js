@@ -4,7 +4,6 @@
     angular.module( "syonet.model" ).provider( "model", modelProvider );
 
     function modelProvider () {
-        var baseUrl = "/";
         var provider = this;
 
         // Special object to determine that returning a HTTP response should be skipped
@@ -25,21 +24,7 @@
          */
         provider.altContentLengthHeader = "X-Content-Length";
 
-        /**
-         * Get/set base URL for the RESTful API we'll be talking to
-         *
-         * @param   {String} [base]
-         */
-        provider.base = function ( base ) {
-            if ( base == null ) {
-                return baseUrl;
-            }
-
-            baseUrl = base;
-            return baseUrl;
-        };
-
-        provider.$get = function ( $q, $modelRequest, $modelDB, modelSync ) {
+        provider.$get = function ( $q, $modelConfig, $modelRequest, $modelDB, modelSync ) {
             /**
              * @param   {Model} model
              * @param   {String} method
@@ -263,8 +248,7 @@
                     path = "/" + next._path.name + ( id ? "/" + id : "" ) + path;
                     next = next._parent;
                 } while ( next );
-
-                return fixDoubleSlashes( provider.base() + path );
+                return fixDoubleSlashes( Model.base() + path );
             };
 
             /**
@@ -391,9 +375,26 @@
                 });
             };
 
+            /**
+             * Get/set base URL for the RESTful API we'll be talking to
+             *
+             * @param   {String} [base]
+             */
+            Model.base = function ( base ) {
+                var cfg = $modelConfig.get();
+                if ( base == null ) {
+                    return cfg.baseUrl;
+                }
+
+                cfg.baseUrl = base;
+                $modelConfig.set( cfg );
+            };
+
             // Supply provider methods to the service layer
             Model.auth = provider.auth;
-            Model.base = provider.base;
+
+            // Initialize base url by default with "/"
+            Model.base( Model.base() || "/" );
 
             return Model;
         };
