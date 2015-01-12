@@ -102,6 +102,32 @@ describe( "model", function () {
 
     // ---------------------------------------------------------------------------------------------
 
+    describe( ".auth( username, password )", function () {
+        it( "should use basic authentication", function () {
+            $httpBackend.expectGET( "/foo", function ( headers ) {
+                return headers.Authorization === "Basic " + btoa( "foo:bar" );
+            }).respond( 200, [] );
+
+            model.auth( "foo", "bar" );
+            model( "foo" ).list();
+
+            testHelpers.flush();
+        });
+
+        it( "should allow usage of empty password", function () {
+            $httpBackend.expectGET( "/foo", function ( headers ) {
+                return headers.Authorization === "Basic " + btoa( "foo:" );
+            }).respond( 200, [] );
+
+            model.auth( "foo" );
+            model( "foo" ).list();
+
+            testHelpers.flush();
+        });
+    });
+
+    // ---------------------------------------------------------------------------------------------
+
     describe( ".id()", function () {
         it( "should return the ID", function () {
             var foo = model( "foo" ).id( "bar" );

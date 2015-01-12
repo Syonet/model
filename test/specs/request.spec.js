@@ -138,29 +138,4 @@ describe( "$modelRequest", function () {
         });
     });
 
-    // ---------------------------------------------------------------------------------------------
-
-    describe( ".auth( username, password )", function () {
-        it( "should use basic authentication", function () {
-            $httpBackend.expectGET( "/", function ( headers ) {
-                return headers.Authorization === "Basic " + btoa( "foo:bar" );
-            }).respond( 200 );
-
-            req.auth( "foo", "bar" );
-            req( "/", "GET" );
-
-            testHelpers.flush();
-        });
-
-        it( "should allow usage of empty password", function () {
-            $httpBackend.expectGET( "/", function ( headers ) {
-                return headers.Authorization === "Basic " + btoa( "foo:" );
-            }).respond( 200 );
-
-            req.auth( "foo" );
-            req( "/", "GET" );
-
-            testHelpers.flush();
-        });
-    });
 });

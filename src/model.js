@@ -4,6 +4,7 @@
     angular.module( "syonet.model" ).provider( "model", modelProvider );
 
     function modelProvider () {
+        var auth;
         var provider = this;
 
         // Special object to determine that returning a HTTP response should be skipped
@@ -24,6 +25,23 @@
          */
         provider.altContentLengthHeader = "X-Content-Length";
 
+        /**
+         * Get/set the username and password used for authentication.
+         *
+         * @param   {String} [username]
+         * @param   {String} [password]
+         */
+        provider.auth = function ( username, password ) {
+            if ( !username ) {
+                return auth;
+            }
+
+            auth = {
+                username: username,
+                password: password
+            };
+        };
+
         provider.$get = function ( $q, $modelConfig, $modelRequest, $modelDB, modelSync ) {
             /**
              * @param   {Model} model
@@ -33,7 +51,7 @@
              */
             function createRequest ( model, method, data ) {
                 var url = model.toURL();
-                var req = $modelRequest( url, method, data );
+                var req = $modelRequest( url, method, data, provider.auth() );
 
                 return req.then( applyIdField, function ( err ) {
                     if ( !$modelRequest.isSafe( method ) && err.status === 0 ) {
