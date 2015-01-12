@@ -383,13 +383,23 @@
              * @param   {String} [base]
              */
             Model.base = function ( base ) {
+                var deferred = $q.defer();
                 var cfg = $modelConfig.get();
                 if ( base == null ) {
                     return cfg.baseUrl;
                 }
 
-                cfg.baseUrl = base;
-                $modelConfig.set( cfg );
+                // No need to re-save the configuration if URL didn't change
+                if ( cfg.baseUrl !== base ) {
+                    // Clear all our DBs upon change of the base URL, but only if this isn't the
+                    // first time using model
+                    deferred.resolve( cfg.baseUrl && $modelDB.clear() );
+
+                    cfg.baseUrl = base;
+                    $modelConfig.set( cfg );
+                }
+
+                return deferred.promise;
             };
 
             // Supply provider methods to the service layer

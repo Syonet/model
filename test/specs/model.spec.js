@@ -1,7 +1,7 @@
 describe( "model", function () {
     "use strict";
 
-    var injector, $rootScope, $httpBackend, pouchDB, provider, model;
+    var injector, $rootScope, $httpBackend, $modelDB, provider, model;
     var expect = chai.expect;
 
     beforeEach( module( "syonet.model", function ( modelProvider ) {
@@ -15,7 +15,7 @@ describe( "model", function () {
         $rootScope = $injector.get( "$rootScope" );
         $httpBackend = $injector.get( "$httpBackend" );
         model = $injector.get( "model" );
-        pouchDB = $injector.get( "pouchDB" );
+        $modelDB = $injector.get( "$modelDB" );
     }));
 
     afterEach(function () {
@@ -23,14 +23,8 @@ describe( "model", function () {
 
         $httpBackend.verifyNoOutstandingExpectation( false );
         $httpBackend.verifyNoOutstandingRequest( false );
-    });
 
-    afterEach(function () {
-        return model( "foo" )._db.destroy();
-    });
-
-    afterEach(function () {
-        return pouchDB( "modelDB.__updates" ).destroy();
+        return $modelDB.clear();
     });
 
     it( "should be created with provided path", function () {
@@ -51,6 +45,26 @@ describe( "model", function () {
         testHelpers.flush();
 
         return expect( promise ).to.eventually.not.have.property( "_blah" );
+    });
+
+    it( "should clear DBs when base URL changes", function () {
+        var promise;
+
+        $httpBackend.expectGET( "/foo" ).respond( 200, [{
+            id: "foo"
+        }]);
+        promise = model( "foo" ).list();
+        testHelpers.flush();
+
+        return promise.then(function () {
+            return model.base( "/api" );
+        }).then(function () {
+            $httpBackend.expectGET( "/api/foo" ).respond( 0, null );
+            promise = model( "foo" ).list();
+            testHelpers.flush( true );
+
+            return expect( promise ).to.be.rejected;
+        });
     });
 
     // ---------------------------------------------------------------------------------------------
@@ -348,7 +362,7 @@ describe( "model", function () {
 
                 $httpBackend.expectGET( "/foo" ).respond( 0, null );
                 promise = model( "foo" ).list();
-                $httpBackend.flush();
+                testHelpers.flush();
 
                 return expect( promise ).to.be.rejected;
             });
@@ -512,7 +526,7 @@ describe( "model", function () {
 
             expect( promise ).to.eventually.equal( data );
 
-            return pouchDB( "modelDB.__updates" ).allDocs({
+            return $modelDB( "__updates" ).allDocs({
                 include_docs: true
             }).then(function ( docs ) {
                 var row = docs.rows[ 0 ];
@@ -564,11 +578,11 @@ describe( "model", function () {
 
             $httpBackend.expectPATCH( "/foo" ).respond( 0, null );
             promise = model( "foo" ).patch( data );
-            $httpBackend.flush();
+            testHelpers.flush();
 
             expect( promise ).to.eventually.equal( data );
 
-            return pouchDB( "modelDB.__updates" ).allDocs({
+            return $modelDB( "__updates" ).allDocs({
                 include_docs: true
             }).then(function ( docs ) {
                 var row = docs.rows[ 0 ];
@@ -614,14 +628,15 @@ describe( "model", function () {
             promise = model( "foo" ).remove();
             testHelpers.flush();
 
-            expect( promise ).to.eventually.equal( null );
+            return promise.then(function ( val ) {
+                expect( val ).to.equal( null );
 
-            return pouchDB( "modelDB.__updates" ).allDocs({
-                include_docs: true
+                return $modelDB( "__updates" ).allDocs({
+                    include_docs: true
+                });
             }).then(function ( docs ) {
                 var row = docs.rows[ 0 ];
-
-                expect( docs.rows[ 0 ].doc ).to.eql({
+                expect( row.doc ).to.eql({
                     _id: row.id,
                     _rev: row.value.rev,
                     model: "/foo",
