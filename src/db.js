@@ -13,6 +13,8 @@
         provider.dbNamePrefix = "modelDB";
 
         provider.$get = function ( pouchDB ) {
+            var instances = {};
+
             /**
              * Return a PouchDB instance with a standardized name.
              *
@@ -20,7 +22,11 @@
              * @returns {PouchDB}
              */
             return function ( name ) {
-                return pouchDB( provider.dbNamePrefix + "." + name );
+                if ( !instances[ name ] ) {
+                    instances[ name ] = pouchDB( provider.dbNamePrefix + "." + name );
+                }
+
+                return instances[ name ];
             };
         };
 
