@@ -18,12 +18,12 @@ describe( "model", function () {
         pouchDB = $injector.get( "pouchDB" );
     }));
 
-    afterEach( inject(function ( $window ) {
-        $window.localStorage.clear();
+    afterEach(function () {
+        localStorage.clear();
 
         $httpBackend.verifyNoOutstandingExpectation( false );
         $httpBackend.verifyNoOutstandingRequest( false );
-    }));
+    });
 
     afterEach(function () {
         return model( "foo" )._db.destroy();
