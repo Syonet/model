@@ -85,6 +85,7 @@
     angular.module( "syonet.model" ).provider( "model", modelProvider );
 
     function modelProvider () {
+        var auth;
         var provider = this;
 
         // Special object to determine that returning a HTTP response should be skipped
@@ -105,6 +106,23 @@
          */
         provider.altContentLengthHeader = "X-Content-Length";
 
+        /**
+         * Get/set the username and password used for authentication.
+         *
+         * @param   {String} [username]
+         * @param   {String} [password]
+         */
+        provider.auth = function ( username, password ) {
+            if ( !username ) {
+                return auth;
+            }
+
+            auth = {
+                username: username,
+                password: password
+            };
+        };
+
         provider.$get = function ( $q, $modelConfig, $modelRequest, $modelDB, modelSync ) {
             /**
              * @param   {Model} model
@@ -114,7 +132,7 @@
              */
             function createRequest ( model, method, data ) {
                 var url = model.toURL();
-                var req = $modelRequest( url, method, data );
+                var req = $modelRequest( url, method, data, provider.auth() );
 
                 return req.then( applyIdField, function ( err ) {
                     if ( !$modelRequest.isSafe( method ) && err.status === 0 ) {
@@ -558,7 +576,6 @@
     angular.module( "syonet.model" ).provider( "$modelRequest", requestProvider );
 
     function requestProvider () {
-        var auth;
         var provider = this;
 
         /**
@@ -574,23 +591,6 @@
          * @param   {Number}
          */
         provider.pingDelay = 60000;
-
-        /**
-         * Get/set the username and password used for authentication.
-         *
-         * @param   {String} [username]
-         * @param   {String} [password]
-         */
-        provider.auth = function ( username, password ) {
-            if ( !username ) {
-                return auth;
-            }
-
-            auth = {
-                username: username,
-                password: password
-            };
-        };
 
         provider.$get = function ( $timeout, $q, $http, $window ) {
             var currPing;
@@ -675,10 +675,10 @@
              * Sets authentication headers in a HTTP configuration object.
              *
              * @param   {Object} config
+             * @param   {Object} [auth]
              */
-            function putAuthorizationHeader ( config ) {
+            function putAuthorizationHeader ( config, auth ) {
                 var password, base64;
-                var auth = provider.auth();
 
                 if ( !auth || !auth.username ) {
                     return;
@@ -697,7 +697,7 @@
              * @param   {*} [data]
              * @returns {Promise}
              */
-            function createRequest ( url, method, data ) {
+            function createRequest ( url, method, data, auth ) {
                 var httpPromise;
                 var deferred = $q.defer();
                 var safe = createRequest.isSafe( method );
@@ -713,7 +713,7 @@
                 // FIXME This functionality has not been tested yet.
                 config.headers.__modelXHR__ = createXhrNotifier( deferred );
 
-                putAuthorizationHeader( config );
+                putAuthorizationHeader( config, auth );
                 httpPromise = $http( config ).then( null, function ( response ) {
                     return $q.reject({
                         data: response.data,
@@ -734,9 +734,6 @@
             createRequest.isSafe = function isSafe ( method ) {
                 return /^(?:GET|HEAD)$/.test( method );
             };
-
-            // Create a shortcut for the auth method
-            createRequest.auth = provider.auth;
 
             // Finally return our super powerful function!
             return createRequest;
