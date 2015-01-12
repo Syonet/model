@@ -21,6 +21,26 @@ describe( "$modelDB", function () {
 
     // ---------------------------------------------------------------------------------------------
 
+    describe( ".clear()", function () {
+        it( "should destroy every created DB", function () {
+            var spy = sinon.spy();
+            window.PouchDB.on( "destroyed", spy );
+
+            // Create some DBs
+            db( "foo" );
+            db( "bar" );
+
+            // Destroy them and then do the assertions
+            return db.clear().then(function () {
+                expect( spy ).to.be.calledWith( "modelDB.foo" );
+                expect( spy ).to.be.calledWith( "modelDB.bar" );
+                expect( spy ).to.be.calledWith( "modelDB.__updates" );
+            });
+        });
+    });
+
+    // ---------------------------------------------------------------------------------------------
+
     describe( ".dbNamePrefix", function () {
         it( "should be the prefix of the model DB", function () {
             var promise;
