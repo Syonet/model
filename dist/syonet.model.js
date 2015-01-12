@@ -8,6 +8,29 @@
 !function () {
     "use strict";
 
+    angular.module( "syonet.model" ).factory( "$modelConfig", configService );
+
+    function configService ( $window ) {
+        // The localStorage key which will store configurations for the model service
+        var MODEL_CFG_KEY = "$model.__config";
+
+        var storage = $window.localStorage;
+
+        return {
+            get: function () {
+                var stored = storage.getItem( MODEL_CFG_KEY );
+                return stored && JSON.parse( stored ) || {};
+            },
+            set: function ( val ) {
+                storage.setItem( MODEL_CFG_KEY, JSON.stringify( val ) );
+            }
+        };
+    }
+    configService.$inject = ["$window"];
+}();
+!function () {
+    "use strict";
+
     angular.module( "syonet.model" ).provider( "$modelDB", dbProvider );
 
     function dbProvider () {
@@ -19,16 +42,38 @@
          */
         provider.dbNamePrefix = "modelDB";
 
-        provider.$get = function ( pouchDB ) {
+        provider.$get = function ( $q, pouchDB ) {
+            var instances = {};
+
             /**
              * Return a PouchDB instance with a standardized name.
              *
              * @param   {String} name
              * @returns {PouchDB}
              */
-            return function ( name ) {
-                return pouchDB( provider.dbNamePrefix + "." + name );
+            var getDB = function ( name ) {
+                if ( !instances[ name ] ) {
+                    instances[ name ] = pouchDB( provider.dbNamePrefix + "." + name );
+                }
+
+                return instances[ name ];
             };
+
+            /**
+             * Destroy all DBs
+             */
+            getDB.clear = function () {
+                var promises = [];
+
+                angular.forEach( instances, function ( db, name ) {
+                    delete instances[ name ];
+                    promises.push( db.destroy() );
+                });
+
+                return $q.all( promises );
+            };
+
+            return getDB;
         };
 
         return provider;
@@ -40,7 +85,6 @@
     angular.module( "syonet.model" ).provider( "model", modelProvider );
 
     function modelProvider () {
-        var baseUrl = "/";
         var provider = this;
 
         // Special object to determine that returning a HTTP response should be skipped
@@ -61,21 +105,7 @@
          */
         provider.altContentLengthHeader = "X-Content-Length";
 
-        /**
-         * Get/set base URL for the RESTful API we'll be talking to
-         *
-         * @param   {String} [base]
-         */
-        provider.base = function ( base ) {
-            if ( base == null ) {
-                return baseUrl;
-            }
-
-            baseUrl = base;
-            return baseUrl;
-        };
-
-        provider.$get = function ( $q, $modelRequest, $modelDB, modelSync ) {
+        provider.$get = function ( $q, $modelConfig, $modelRequest, $modelDB, modelSync ) {
             /**
              * @param   {Model} model
              * @param   {String} method
@@ -212,7 +242,9 @@
                     throw new Error( "Model name must be supplied" );
                 }
 
-                this._db = $modelDB( name );
+                this.__defineGetter__( "_db", function () {
+                    return $modelDB( name );
+                });
 
                 this._path = {
                     name: name
@@ -299,8 +331,7 @@
                     path = "/" + next._path.name + ( id ? "/" + id : "" ) + path;
                     next = next._parent;
                 } while ( next );
-
-                return fixDoubleSlashes( provider.base() + path );
+                return fixDoubleSlashes( Model.base() + path );
             };
 
             /**
@@ -427,9 +458,36 @@
                 });
             };
 
+            /**
+             * Get/set base URL for the RESTful API we'll be talking to
+             *
+             * @param   {String} [base]
+             */
+            Model.base = function ( base ) {
+                var deferred = $q.defer();
+                var cfg = $modelConfig.get();
+                if ( base == null ) {
+                    return cfg.baseUrl;
+                }
+
+                // No need to re-save the configuration if URL didn't change
+                if ( cfg.baseUrl !== base ) {
+                    // Clear all our DBs upon change of the base URL, but only if this isn't the
+                    // first time using model
+                    deferred.resolve( cfg.baseUrl && $modelDB.clear() );
+
+                    cfg.baseUrl = base;
+                    $modelConfig.set( cfg );
+                }
+
+                return deferred.promise;
+            };
+
             // Supply provider methods to the service layer
             Model.auth = provider.auth;
-            Model.base = provider.base;
+
+            // Initialize base url by default with "/"
+            Model.base( Model.base() || "/" );
 
             return Model;
         };
@@ -690,101 +748,135 @@
 !function () {
     "use strict";
 
-    angular.module( "syonet.model" ).factory( "modelSync", modelSyncService );
+    angular.module( "syonet.model" ).provider( "modelSync", modelSyncProvider );
 
-    function modelSyncService ( $q, $modelRequest, $modelDB ) {
-        var UPDATE_DB_NAME = "__updates";
-        var db = $modelDB( UPDATE_DB_NAME );
+    function modelSyncProvider ( $modelRequestProvider ) {
+        var provider = this;
 
-        function sync () {
-            if ( sync.$$running ) {
-                return;
-            }
+        provider.$get = function ( $q, $interval, $document, $modelRequest, $modelDB ) {
+            var UPDATE_DB_NAME = "__updates";
+            var db = $modelDB( UPDATE_DB_NAME );
 
-            sync.$$running = true;
-            return db.allDocs({
-                include_docs: true
-            }).then(function ( docs ) {
-                var promises = [];
+            function sync () {
+                if ( sync.$$running ) {
+                    return;
+                }
 
-                docs.rows.forEach(function ( row ) {
-                    // Reconstitute model and try to send the request again
-                    var promise = $modelRequest(
-                        row.doc.model,
-                        row.doc.method,
-                        row.doc.data
-                    );
-                    promises.push( promise );
+                sync.$$running = true;
+                return db.allDocs({
+                    include_docs: true
+                }).then(function ( docs ) {
+                    var promises = [];
+
+                    docs.rows.forEach(function ( row ) {
+                        // Reconstitute model and try to send the request again
+                        var promise = $modelRequest(
+                            row.doc.model,
+                            row.doc.method,
+                            row.doc.data
+                        );
+                        promises.push( promise );
+                    });
+
+                    return $q.all( promises );
+                }).then(function ( values ) {
+                    clear();
+
+                    // Don't emit if there were no resolved values
+                    if ( values.length ) {
+                        sync.emit( "success" );
+                    }
+                }, function ( err ) {
+                    clear();
+
+                    // Pass the error to the callbacks whatever it is
+                    sync.emit( "error", err );
                 });
 
-                return $q.all( promises );
-            }).then(function ( values ) {
-                clear();
-
-                // Don't emit if there were no resolved values
-                if ( values.length ) {
-                    sync.emit( "success" );
+                function clear () {
+                    sync.$$running = false;
                 }
-            }, function ( err ) {
-                clear();
-
-                // Pass the error to the callbacks whatever it is
-                sync.emit( "error", err );
-            });
-
-            function clear () {
-                sync.$$running = false;
             }
-        }
 
-        sync.$$events = {};
+            sync.$$events = {};
 
-        /**
-         * Store a combination of model/method/data.
-         *
-         * @param   {String} url        The model URL
-         * @param   {String} method     The HTTP method
-         * @param   {Object} [data]     Optional data
-         * @returns {Promise}
-         */
-        sync.store = function ( url, method, data ) {
-            return db.post({
-                model: url,
-                method: method,
-                data: data
-            });
+            /**
+             * Store a combination of model/method/data.
+             *
+             * @param   {String} url        The model URL
+             * @param   {String} method     The HTTP method
+             * @param   {Object} [data]     Optional data
+             * @returns {Promise}
+             */
+            sync.store = function ( url, method, data ) {
+                return db.post({
+                    model: url,
+                    method: method,
+                    data: data
+                });
+            };
+
+            /**
+             * Add a event to the synchronization object
+             *
+             * @param   {String} event
+             * @param   {Function} listener
+             * @returns void
+             */
+            sync.on = function ( event, listener ) {
+                sync.$$events[ event ] = sync.$$events[ event ] || [];
+                sync.$$events[ event ].push( listener );
+            };
+
+            /**
+             * Emit a event in the synchronization object
+             *
+             * @param   {String} event
+             * @returns void
+             */
+            sync.emit = function ( event ) {
+                var args = [].slice.call( arguments, 1 );
+                var listeners = sync.$$events[ event ] || [];
+
+                listeners.forEach(function ( listener ) {
+                    listener.apply( null, args );
+                });
+            };
+
+            /**
+             * Create a schedule for synchronization runs.
+             * Useful for hitting offline servers.
+             *
+             * @param   {Number} [delay] Number of milliseconds between each synchronization run.
+             *                           If delay is smaller than the ping delay, then the delay
+             *                           used is the ping delay.
+             */
+            sync.schedule = function ( delay ) {
+                delay = Math.max( delay || $modelRequestProvider.pingDelay );
+
+                sync.schedule.cancel();
+                sync.$$schedule = $interval( sync, delay );
+            };
+
+            /**
+             * Cancel a scheduled synchronization interval.
+             */
+            sync.schedule.cancel = function () {
+                $interval.cancel( sync.$$schedule );
+            };
+
+            // When the page is back online, then we'll trigger an synchronization run
+            $document.on( "online", sync );
+
+            // Also create a default schedule
+            sync.schedule();
+
+            return sync;
         };
 
-        /**
-         * Add a event to the synchronization object
-         *
-         * @param   {String} event
-         * @param   {Function} listener
-         * @returns void
-         */
-        sync.on = function ( event, listener ) {
-            sync.$$events[ event ] = sync.$$events[ event ] || [];
-            sync.$$events[ event ].push( listener );
-        };
-
-        /**
-         * Emit a event in the synchronization object
-         *
-         * @param   {String} event
-         * @returns void
-         */
-        sync.emit = function ( event ) {
-            var args = [].slice.call( arguments, 1 );
-            var listeners = sync.$$events[ event ] || [];
-
-            listeners.forEach(function ( listener ) {
-                listener.apply( null, args );
-            });
-        };
-
-        return sync;
+        return provider;
     }
-    modelSyncService.$inject = ["$q", "$modelRequest", "$modelDB"];
+    modelSyncProvider.$inject = ["$modelRequestProvider"];
 }();
 !function () {
     "use strict";
