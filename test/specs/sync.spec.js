@@ -1,11 +1,17 @@
 describe( "modelSync", function () {
     "use strict";
 
-    var $q, $httpBackend, db, sync, model, req;
+    var $q, $httpBackend, $interval, db, sync, model, reqProvider, req;
 
-    beforeEach( module( "syonet.model", function ( $provide ) {
+    beforeEach( module( "syonet.model", function ( $modelRequestProvider, $provide ) {
+        reqProvider = $modelRequestProvider;
+
         $provide.decorator( "$modelRequest", function ( $q ) {
             return req = sinon.stub().returns( $q.when( true ) );
+        });
+
+        $provide.decorator( "$interval", function ( $delegate ) {
+            return $interval = sinon.spy( $delegate );
         });
     }));
 
@@ -70,6 +76,43 @@ describe( "modelSync", function () {
         var spy = sinon.spy( sync, "emit" );
         return sync().then(function () {
             expect( spy ).to.not.have.been.called;
+        });
+    });
+
+    it( "should have a default scheduled synchronization interval", function () {
+        expect( sync.$$schedule ).to.be.defined;
+    });
+
+    it( "should watch on online events", inject(function ( $document ) {
+        expect( sync.$$running ).to.not.be.ok;
+        $document.triggerHandler( "online" );
+        expect( sync.$$running ).to.be.ok;
+    }));
+
+    // ---------------------------------------------------------------------------------------------
+
+    describe( ".schedule( delay )", function () {
+        it( "should use ping delay as the minimum delay between calls", function () {
+            sync.schedule( 30 );
+            expect( $interval ).to.have.been.calledWith( sync, reqProvider.pingDelay );
+        });
+
+        it( "should cancel the other schedule", function () {
+            var spy = sinon.spy( sync.schedule, "cancel" );
+
+            sync.schedule();
+            expect( spy ).to.have.been.called;
+        });
+    });
+
+    // ---------------------------------------------------------------------------------------------
+
+    describe( ".schedule.cancel()", function () {
+        it( "should cancel the scheduled interval", function () {
+            var spy = sinon.spy( $interval, "cancel" );
+
+            sync.schedule.cancel();
+            expect( spy ).to.have.been.calledWith( sync.$$schedule );
         });
     });
 
