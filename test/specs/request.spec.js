@@ -48,42 +48,6 @@ describe( "$modelRequest", function () {
         });
     });
 
-    it( "should timeout requests", function ( done ) {
-        var promise;
-
-        provider.timeout = 100;
-        testHelpers.ping.respond( 0 );
-        $httpBackend.expectGET( "/foo" ).respond( 200, {} );
-        promise = req( "/foo", "GET" );
-
-        setTimeout(function () {
-            testHelpers.flush( true );
-
-            expect( promise ).to.eventually.be.rejectedWith( sinon.match({
-                status: 0
-            })).then( done, done );
-        }, 100 );
-    });
-
-    it( "should not retrigger ping request before ping delay has passed", function () {
-        $http = $http.withArgs( sinon.match({
-            method: "HEAD"
-        }));
-
-        $httpBackend.whenGET( "/foo" ).respond( [] );
-
-        req( "/foo", "GET" );
-        req( "/foo", "GET" );
-
-        expect( $http ).to.have.callCount( 1 );
-        testHelpers.flush();
-        testHelpers.timeout();
-
-        req( "/foo", "GET" );
-        expect( $http ).to.have.callCount( 2 );
-        testHelpers.flush();
-    });
-
     it( "should pass request data as query string for safe methods", function () {
         $httpBackend.expectGET( "/?foo=bar" ).respond( "foobar" );
         req( "/", "GET", {
@@ -104,17 +68,6 @@ describe( "$modelRequest", function () {
         testHelpers.flush();
     });
 
-    it( "should send ping request to base URL if available", function () {
-        $httpBackend.expectHEAD( "/api" ).respond( 200 );
-        $httpBackend.expectGET( "/" ).respond( 200 );
-
-        req( "/", "GET", null, {
-            baseUrl: "/api"
-        });
-
-        testHelpers.flush();
-    });
-
     it( "should use basic authentication", function () {
         $httpBackend.expectGET( "/", function ( headers ) {
             return headers.Authorization === "Basic " + btoa( "foo:bar" );
@@ -130,20 +83,71 @@ describe( "$modelRequest", function () {
         testHelpers.flush();
     });
 
-    it( "should allow to pass thru ping status if force option is passed", function () {
-        $http = $http.withArgs( sinon.match({
-            method: "HEAD"
-        }));
+    // ---------------------------------------------------------------------------------------------
 
-        $httpBackend.whenGET( "/foo" ).respond( [] );
+    describe( "pings", function () {
+        it( "should timeout requests", function ( done ) {
+            var promise;
 
-        req( "/foo", "GET" );
-        req( "/foo", "GET", null, {
-            force: true
+            provider.timeout = 100;
+            testHelpers.ping.respond( 0 );
+            $httpBackend.expectGET( "/foo" ).respond( 200, {} );
+            promise = req( "/foo", "GET" );
+
+            setTimeout(function () {
+                testHelpers.flush( true );
+
+                expect( promise ).to.eventually.be.rejectedWith( sinon.match({
+                    status: 0
+                })).then( done, done );
+            }, 100 );
         });
 
-        expect( $http ).to.have.callCount( 2 );
-        testHelpers.flush();
+        it( "should not be retriggered before delay has passed", function () {
+            $http = $http.withArgs( sinon.match({
+                method: "HEAD"
+            }));
+
+            $httpBackend.whenGET( "/foo" ).respond( [] );
+
+            req( "/foo", "GET" );
+            req( "/foo", "GET" );
+
+            expect( $http ).to.have.callCount( 1 );
+            testHelpers.flush();
+            testHelpers.timeout();
+
+            req( "/foo", "GET" );
+            expect( $http ).to.have.callCount( 2 );
+            testHelpers.flush();
+        });
+
+        it( "should be sent to base URL if available", function () {
+            $httpBackend.expectHEAD( "/api" ).respond( 200 );
+            $httpBackend.expectGET( "/" ).respond( 200 );
+
+            req( "/", "GET", null, {
+                baseUrl: "/api"
+            });
+
+            testHelpers.flush();
+        });
+
+        it( "should be passed thru with force option", function () {
+            $http = $http.withArgs( sinon.match({
+                method: "HEAD"
+            }));
+
+            $httpBackend.whenGET( "/foo" ).respond( [] );
+
+            req( "/foo", "GET" );
+            req( "/foo", "GET", null, {
+                force: true
+            });
+
+            expect( $http ).to.have.callCount( 2 );
+            testHelpers.flush();
+        });
     });
 
     // ---------------------------------------------------------------------------------------------
