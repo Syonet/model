@@ -115,6 +115,21 @@ describe( "$modelRequest", function () {
         testHelpers.flush();
     });
 
+    it( "should use basic authentication", function () {
+        $httpBackend.expectGET( "/", function ( headers ) {
+            return headers.Authorization === "Basic " + btoa( "foo:bar" );
+        }).respond( 200, [] );
+
+        req( "/", "GET", null, {
+            auth: {
+                username: "foo",
+                password: "bar"
+            }
+        });
+
+        testHelpers.flush();
+    });
+
     // ---------------------------------------------------------------------------------------------
 
     describe( ".timeout", function () {
