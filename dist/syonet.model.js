@@ -128,11 +128,18 @@
              * @param   {Model} model
              * @param   {String} method
              * @param   {*} [data]
+             * @param   {Object} [options]
              * @returns {Promise}
              */
-            function createRequest ( model, method, data ) {
+            function createRequest ( model, method, data, options ) {
+                var req;
                 var url = model.toURL();
-                var req = $modelRequest( url, method, data, provider.auth() );
+
+                options = angular.extend( {}, options, {
+                    auth: provider.auth(),
+                    baseUrl: Model.base()
+                });
+                req = $modelRequest( url, method, data, options );
 
                 return req.then( applyIdField, function ( err ) {
                     if ( !$modelRequest.isSafe( method ) && err.status === 0 ) {
@@ -362,9 +369,10 @@
              *
              * @param   {*} [collection]
              * @param   {Object} [query]
+             * @param   {Object} [options]
              * @returns {Promise}
              */
-            Model.prototype.list = function ( collection, query ) {
+            Model.prototype.list = function ( collection, query, options ) {
                 var msg;
                 var self = this;
 
@@ -378,10 +386,11 @@
                         throw new Error( msg );
                     }
                 } else {
+                    options = query;
                     query = collection;
                 }
 
-                return createRequest( self, "GET", query ).then(function ( data ) {
+                return createRequest( self, "GET", query, options ).then(function ( data ) {
                     return updateCache( self, data );
                 }, function ( err ) {
                     return fetchCacheOrThrow( self, err );
@@ -396,9 +405,10 @@
              * Triggers a GET request.
              *
              * @param   {*} [id]
+             * @param   {Object} [options]
              * @returns {Promise}
              */
-            Model.prototype.get = function ( id ) {
+            Model.prototype.get = function ( id, options ) {
                 var msg;
                 var self = this;
 
@@ -411,9 +421,11 @@
                             "child element ID.";
                         throw new Error( msg );
                     }
+                } else {
+                    options = id;
                 }
 
-                return createRequest( self, "GET" ).then(function ( data ) {
+                return createRequest( self, "GET", null, options ).then(function ( data ) {
                     return updateCache( self, data );
                 }, function ( err ) {
                     return fetchCacheOrThrow( self, err );
@@ -424,12 +436,13 @@
              * Save the current collection/element.
              * Triggers a POST request.
              *
-             * @param   {*} data    The data to save
+             * @param   {*} data            The data to save
+             * @param   {Object} options
              * @returns {Promise}
              */
-            Model.prototype.save = function ( data ) {
+            Model.prototype.save = function ( data, options ) {
                 var self = this;
-                return createRequest( self, "POST", data ).then(function ( docs ) {
+                return createRequest( self, "POST", data, options ).then(function ( docs ) {
                     if ( docs === SKIP_RESPONSE ) {
                         return data;
                     }
@@ -443,11 +456,12 @@
              * Triggers a PATCH request.
              *
              * @param   {*} [data]
+             * @param   {Object} options
              * @returns {Promise}
              */
-            Model.prototype.patch = function ( data ) {
+            Model.prototype.patch = function ( data, options ) {
                 var self = this;
-                return createRequest( this, "PATCH", data ).then(function ( docs ) {
+                return createRequest( this, "PATCH", data, options ).then(function ( docs ) {
                     if ( docs === SKIP_RESPONSE ) {
                         return data;
                     }
@@ -460,13 +474,14 @@
              * Removes the current collection/element.
              * Triggers a DELETE request.
              *
+             * @param   {Object} [options]
              * @returns {Promise}
              */
-            Model.prototype.remove = function () {
+            Model.prototype.remove = function ( options ) {
                 var response;
                 var self = this;
 
-                return createRequest( self, "DELETE" ).then(function ( data ) {
+                return createRequest( self, "DELETE", null, options ).then(function ( data ) {
                     response = data;
                     return fetchCacheOrThrow( self, null );
                 }).then(function ( cached ) {
@@ -611,12 +626,13 @@
              * If it's a
              *
              * @param   {String} url
+             * @param   {Boolean} [force]
              * @returns {Promise}
              */
-            function createPingRequest ( url ) {
-                return currPing = currPing || $http({
+            function createPingRequest ( url, force ) {
+                return currPing = ( !force && currPing ) || $http({
                     method: "HEAD",
-                    url: getPingUrl( url ),
+                    url: url,
                     timeout: provider.timeout
                 }).then(function () {
                     clearPingRequest();
@@ -695,25 +711,33 @@
              * @param   {String} url
              * @param   {String} method
              * @param   {*} [data]
+             * @param   {Object} [options]
              * @returns {Promise}
              */
-            function createRequest ( url, method, data, auth ) {
-                var httpPromise;
+            function createRequest ( url, method, data, options ) {
+                var pingUrl, config, httpPromise;
                 var deferred = $q.defer();
                 var safe = createRequest.isSafe( method );
-                var config = {
+
+                // Ensure options is an object
+                options = options || {};
+
+                // Create the URL to ping
+                pingUrl = options.baseUrl || getPingUrl( url );
+
+                config = {
                     method: method,
                     url: url,
                     params: safe ? data : null,
                     data: safe ? null : data,
                     headers: {},
-                    timeout: createPingRequest( url )
+                    timeout: createPingRequest( pingUrl, options.force )
                 };
 
                 // FIXME This functionality has not been tested yet.
                 config.headers.__modelXHR__ = createXhrNotifier( deferred );
 
-                putAuthorizationHeader( config, auth );
+                putAuthorizationHeader( config, options.auth );
                 httpPromise = $http( config ).then( null, function ( response ) {
                     return $q.reject({
                         data: response.data,
