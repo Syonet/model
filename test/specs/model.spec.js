@@ -666,7 +666,8 @@ describe( "model", function () {
                     _id: row.id,
                     _rev: row.value.rev,
                     model: "/foo",
-                    method: "DELETE"
+                    method: "DELETE",
+                    data: null
                 });
             });
         });

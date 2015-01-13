@@ -39,10 +39,11 @@
              * If it's a
              *
              * @param   {String} url
+             * @param   {Boolean} [force]
              * @returns {Promise}
              */
-            function createPingRequest ( url ) {
-                return currPing = currPing || $http({
+            function createPingRequest ( url, force ) {
+                return currPing = ( !force && currPing ) || $http({
                     method: "HEAD",
                     url: url,
                     timeout: provider.timeout
@@ -127,12 +128,15 @@
              * @returns {Promise}
              */
             function createRequest ( url, method, data, options ) {
-                var config, httpPromise;
+                var pingUrl, config, httpPromise;
                 var deferred = $q.defer();
                 var safe = createRequest.isSafe( method );
 
                 // Ensure options is an object
                 options = options || {};
+
+                // Create the URL to ping
+                pingUrl = options.baseUrl || getPingUrl( url );
 
                 config = {
                     method: method,
@@ -140,7 +144,7 @@
                     params: safe ? data : null,
                     data: safe ? null : data,
                     headers: {},
-                    timeout: createPingRequest( options.baseUrl || getPingUrl( url ) )
+                    timeout: createPingRequest( pingUrl, options.force )
                 };
 
                 // FIXME This functionality has not been tested yet.

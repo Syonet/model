@@ -130,6 +130,22 @@ describe( "$modelRequest", function () {
         testHelpers.flush();
     });
 
+    it( "should allow to pass thru ping status if force option is passed", function () {
+        $http = $http.withArgs( sinon.match({
+            method: "HEAD"
+        }));
+
+        $httpBackend.whenGET( "/foo" ).respond( [] );
+
+        req( "/foo", "GET" );
+        req( "/foo", "GET", null, {
+            force: true
+        });
+
+        expect( $http ).to.have.callCount( 2 );
+        testHelpers.flush();
+    });
+
     // ---------------------------------------------------------------------------------------------
 
     describe( ".timeout", function () {

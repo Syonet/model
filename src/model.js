@@ -288,9 +288,10 @@
              *
              * @param   {*} [collection]
              * @param   {Object} [query]
+             * @param   {Object} [options]
              * @returns {Promise}
              */
-            Model.prototype.list = function ( collection, query ) {
+            Model.prototype.list = function ( collection, query, options ) {
                 var msg;
                 var self = this;
 
@@ -304,10 +305,11 @@
                         throw new Error( msg );
                     }
                 } else {
+                    options = query;
                     query = collection;
                 }
 
-                return createRequest( self, "GET", query ).then(function ( data ) {
+                return createRequest( self, "GET", query, options ).then(function ( data ) {
                     return updateCache( self, data );
                 }, function ( err ) {
                     return fetchCacheOrThrow( self, err );
@@ -322,9 +324,10 @@
              * Triggers a GET request.
              *
              * @param   {*} [id]
+             * @param   {Object} [options]
              * @returns {Promise}
              */
-            Model.prototype.get = function ( id ) {
+            Model.prototype.get = function ( id, options ) {
                 var msg;
                 var self = this;
 
@@ -337,9 +340,11 @@
                             "child element ID.";
                         throw new Error( msg );
                     }
+                } else {
+                    options = id;
                 }
 
-                return createRequest( self, "GET" ).then(function ( data ) {
+                return createRequest( self, "GET", null, options ).then(function ( data ) {
                     return updateCache( self, data );
                 }, function ( err ) {
                     return fetchCacheOrThrow( self, err );
@@ -350,12 +355,13 @@
              * Save the current collection/element.
              * Triggers a POST request.
              *
-             * @param   {*} data    The data to save
+             * @param   {*} data            The data to save
+             * @param   {Object} options
              * @returns {Promise}
              */
-            Model.prototype.save = function ( data ) {
+            Model.prototype.save = function ( data, options ) {
                 var self = this;
-                return createRequest( self, "POST", data ).then(function ( docs ) {
+                return createRequest( self, "POST", data, options ).then(function ( docs ) {
                     if ( docs === SKIP_RESPONSE ) {
                         return data;
                     }
@@ -369,11 +375,12 @@
              * Triggers a PATCH request.
              *
              * @param   {*} [data]
+             * @param   {Object} options
              * @returns {Promise}
              */
-            Model.prototype.patch = function ( data ) {
+            Model.prototype.patch = function ( data, options ) {
                 var self = this;
-                return createRequest( this, "PATCH", data ).then(function ( docs ) {
+                return createRequest( this, "PATCH", data, options ).then(function ( docs ) {
                     if ( docs === SKIP_RESPONSE ) {
                         return data;
                     }
@@ -386,13 +393,14 @@
              * Removes the current collection/element.
              * Triggers a DELETE request.
              *
+             * @param   {Object} [options]
              * @returns {Promise}
              */
-            Model.prototype.remove = function () {
+            Model.prototype.remove = function ( options ) {
                 var response;
                 var self = this;
 
-                return createRequest( self, "DELETE" ).then(function ( data ) {
+                return createRequest( self, "DELETE", null, options ).then(function ( data ) {
                     response = data;
                     return fetchCacheOrThrow( self, null );
                 }).then(function ( cached ) {
