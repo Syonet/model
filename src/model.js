@@ -47,11 +47,18 @@
              * @param   {Model} model
              * @param   {String} method
              * @param   {*} [data]
+             * @param   {Object} [options]
              * @returns {Promise}
              */
-            function createRequest ( model, method, data ) {
+            function createRequest ( model, method, data, options ) {
+                var req;
                 var url = model.toURL();
-                var req = $modelRequest( url, method, data, provider.auth() );
+
+                options = angular.extend( {}, options, {
+                    auth: provider.auth(),
+                    baseUrl: Model.base()
+                });
+                req = $modelRequest( url, method, data, options );
 
                 return req.then( applyIdField, function ( err ) {
                     if ( !$modelRequest.isSafe( method ) && err.status === 0 ) {

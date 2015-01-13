@@ -104,6 +104,17 @@ describe( "$modelRequest", function () {
         testHelpers.flush();
     });
 
+    it( "should send ping request to base URL if available", function () {
+        $httpBackend.expectHEAD( "/api" ).respond( 200 );
+        $httpBackend.expectGET( "/" ).respond( 200 );
+
+        req( "/", "GET", null, {
+            baseUrl: "/api"
+        });
+
+        testHelpers.flush();
+    });
+
     // ---------------------------------------------------------------------------------------------
 
     describe( ".timeout", function () {

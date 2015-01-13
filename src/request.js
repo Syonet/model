@@ -44,7 +44,7 @@
             function createPingRequest ( url ) {
                 return currPing = currPing || $http({
                     method: "HEAD",
-                    url: getPingUrl( url ),
+                    url: url,
                     timeout: provider.timeout
                 }).then(function () {
                     clearPingRequest();
@@ -123,25 +123,30 @@
              * @param   {String} url
              * @param   {String} method
              * @param   {*} [data]
+             * @param   {Object} [options]
              * @returns {Promise}
              */
-            function createRequest ( url, method, data, auth ) {
-                var httpPromise;
+            function createRequest ( url, method, data, options ) {
+                var config, httpPromise;
                 var deferred = $q.defer();
                 var safe = createRequest.isSafe( method );
-                var config = {
+
+                // Ensure options is an object
+                options = options || {};
+
+                config = {
                     method: method,
                     url: url,
                     params: safe ? data : null,
                     data: safe ? null : data,
                     headers: {},
-                    timeout: createPingRequest( url )
+                    timeout: createPingRequest( options.baseUrl || getPingUrl( url ) )
                 };
 
                 // FIXME This functionality has not been tested yet.
                 config.headers.__modelXHR__ = createXhrNotifier( deferred );
 
-                putAuthorizationHeader( config, auth );
+                putAuthorizationHeader( config, options.auth );
                 httpPromise = $http( config ).then( null, function ( response ) {
                     return $q.reject({
                         data: response.data,
