@@ -328,18 +328,10 @@
              * @returns {Promise}
              */
             Model.prototype.get = function ( id, options ) {
-                var msg;
                 var self = this;
 
                 if ( !this.id() ) {
-                    if ( id ) {
-                        self = this.id( id );
-                    } else {
-                        msg =
-                            "Can't invoke .get() in a collection without specifying " +
-                            "child element ID.";
-                        throw new Error( msg );
-                    }
+                    self = id ? this.id( id ) : self;
                 } else {
                     options = id;
                 }
