@@ -62,7 +62,7 @@
 
                 return req.then( applyIdField, function ( err ) {
                     if ( !$modelRequest.isSafe( method ) && err.status === 0 ) {
-                        return modelSync.store( url, method, data ).then(function () {
+                        return modelSync.store( url, method, data, options ).then(function () {
                             return SKIP_RESPONSE;
                         });
                     }

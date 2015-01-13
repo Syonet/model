@@ -52,6 +52,19 @@ describe( "modelSync", function () {
         });
     });
 
+    it( "should retrigger with provided options", function () {
+        var options = {
+            auth: {
+                username: "foo",
+                password: "bar"
+            }
+        };
+
+        return sync.store( "/", "POST", null, options ).then( sync ).then(function () {
+            expect( req ).to.have.been.calledWith( "/", "POST", null, options );
+        });
+    });
+
     it( "should trigger error event with the promise rejection cause", function () {
         var spy = sinon.spy( sync, "emit" );
         var stores = [

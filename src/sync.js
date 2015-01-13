@@ -22,11 +22,14 @@
                     var promises = [];
 
                     docs.rows.forEach(function ( row ) {
+                        var doc = row.doc;
+
                         // Reconstitute model and try to send the request again
                         var promise = $modelRequest(
-                            row.doc.model,
-                            row.doc.method,
-                            row.doc.data
+                            doc.model,
+                            doc.method,
+                            doc.data,
+                            doc.options
                         );
                         promises.push( promise );
                     });
@@ -59,13 +62,15 @@
              * @param   {String} url        The model URL
              * @param   {String} method     The HTTP method
              * @param   {Object} [data]     Optional data
+             * @param   {Object} [options]  $modelRequest options
              * @returns {Promise}
              */
-            sync.store = function ( url, method, data ) {
+            sync.store = function ( url, method, data, options ) {
                 return db.post({
                     model: url,
                     method: method,
-                    data: data
+                    data: data,
+                    options: options
                 });
             };
 

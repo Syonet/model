@@ -555,15 +555,12 @@ describe( "model", function () {
             return $modelDB( "__updates" ).allDocs({
                 include_docs: true
             }).then(function ( docs ) {
-                var row = docs.rows[ 0 ];
+                var doc = docs.rows[ 0 ].doc;
 
-                expect( docs.rows[ 0 ].doc ).to.eql({
-                    _id: row.id,
-                    _rev: row.value.rev,
-                    model: "/foo",
-                    method: "POST",
-                    data: data
-                });
+                expect( doc ).to.have.property( "model", "/foo" );
+                expect( doc ).to.have.property( "method", "POST" );
+                expect( doc ).to.have.property( "data" ).and.eql( data );
+                expect( doc ).to.have.property( "options" );
             });
         });
     });
@@ -611,15 +608,12 @@ describe( "model", function () {
             return $modelDB( "__updates" ).allDocs({
                 include_docs: true
             }).then(function ( docs ) {
-                var row = docs.rows[ 0 ];
+                var doc = docs.rows[ 0 ].doc;
 
-                expect( docs.rows[ 0 ].doc ).to.eql({
-                    _id: row.id,
-                    _rev: row.value.rev,
-                    model: "/foo",
-                    method: "PATCH",
-                    data: data
-                });
+                expect( doc ).to.have.property( "model", "/foo" );
+                expect( doc ).to.have.property( "method", "PATCH" );
+                expect( doc ).to.have.property( "data" ).and.eql( data );
+                expect( doc ).to.have.property( "options" );
             });
         });
     });
@@ -661,14 +655,12 @@ describe( "model", function () {
                     include_docs: true
                 });
             }).then(function ( docs ) {
-                var row = docs.rows[ 0 ];
-                expect( row.doc ).to.eql({
-                    _id: row.id,
-                    _rev: row.value.rev,
-                    model: "/foo",
-                    method: "DELETE",
-                    data: null
-                });
+                var doc = docs.rows[ 0 ].doc;
+
+                expect( doc ).to.have.property( "model", "/foo" );
+                expect( doc ).to.have.property( "method", "DELETE" );
+                expect( doc ).to.have.property( "data", null );
+                expect( doc ).to.have.property( "options" );
             });
         });
     });
