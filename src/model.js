@@ -17,15 +17,6 @@
         provider.idFieldHeader = "X-Id-Field";
 
         /**
-         * The name of an alternative header that will contain the Content-Length, in case
-         * the server provides it.
-         * Useful when computing the length of a response which has Transfer-Encoding: chunked
-         *
-         * @type    {String}
-         */
-        provider.altContentLengthHeader = "X-Content-Length";
-
-        /**
          * Get/set the username and password used for authentication.
          *
          * @param   {String} [username]
