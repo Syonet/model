@@ -111,7 +111,22 @@ describe( "$modelCache", function () {
     // ---------------------------------------------------------------------------------------------
 
     describe( ".remove()", function () {
-        it( "should remove all documents from DB", function () {
+        it( "should remove all documents passed", function () {
+            var foo = model( "foo" );
+            return cache.set( foo, [{
+                _id: "foo"
+            }, {
+                _id: "bar"
+            }]).then(function () {
+                return cache.remove( foo, {
+                    _id: "foo"
+                });
+            }).then(function () {
+                return expect( foo._db.allDocs() ).to.eventually.have.property( "total_rows", 1 );
+            });
+        });
+
+        it( "should remove all documents from DB if no data passed", function () {
             var foo = model( "foo" );
             return cache.set( foo, {
                 _id: "foo"

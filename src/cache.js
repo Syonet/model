@@ -5,25 +5,51 @@
 
     function cacheService ( $q ) {
         /**
-         * Remove every item from the DB of the passed model.
+         * Remove every document passed, or the entire DB if nothing passed.
          *
          * @param   {Model} model
+         * @param   {Object|Object[]} data
          * @returns {Promise}
          */
-        function remove ( model ) {
-            var db = model._db;
-            return db.allDocs().then(function ( docs ) {
-                // Modify each document and set the _deleted key
-                docs = docs.rows.map(function ( row ) {
-                    return {
-                        _id: row.id,
-                        _rev: row.value.rev,
-                        _deleted: true
-                    };
+        function remove ( model, data ) {
+            var arr, promise;
+            var coll = !model.id();
+
+            if ( data ) {
+                arr = angular.isArray( data );
+                data = arr ? data : [ data ];
+                promise = $q.when();
+            } else {
+                // If there's no data, we'll remove everything from the DB
+                promise = model._db.allDocs().then(function ( docs ) {
+                    data = docs.rows.map(function ( row ) {
+                        return {
+                            _id: row.id
+                        };
+                    });
+                });
+            }
+
+            return promise.then(function () {
+                // Find the current revision of each item in the data array
+                var promises = data.map( function ( item ) {
+                    item = arr || coll ? model.id( item._id ) : model;
+                    return item.rev();
                 });
 
-                // If we don't have any document, let's not do anything
-                return docs.length ? db.bulkDocs( docs ) : null;
+                return $q.all( promises );
+            }).then(function ( revs ) {
+                data = revs.map(function ( rev, i ) {
+                    return {
+                        _id: data[ i ]._id,
+                        _rev: rev,
+                        _deleted: true
+                    };
+                }).filter(function ( item ) {
+                    return item._rev;
+                });
+
+                return data.length ? model._db.bulkDocs( data ) : [];
             });
         }
 
