@@ -16,7 +16,7 @@
         function patch ( patches, id, callback ) {
             var db = this;
 
-            return db.get( id ).then(function ( doc ) {
+            return db.get( String( id ) ).then(function ( doc ) {
                 angular.extend( doc, patches );
                 return db.put( doc, id, doc._rev, callback );
             }, callback );
