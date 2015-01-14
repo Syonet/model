@@ -55,6 +55,8 @@
                 });
 
                 return model._db.bulkDocs( data );
+            }).then(function () {
+                return arr ? data : data[ 0 ];
             });
         }
 
@@ -68,6 +70,8 @@
          */
         function extend ( model, data ) {
             var ids;
+            // Will store data that's going to be updated
+            var bulkData = [];
             var db = model._db;
             var arr = angular.isArray( data );
             data = arr ? data : [ data ];
@@ -80,8 +84,6 @@
             return db.allDocs({
                 include_docs: true
             }).then(function ( docs ) {
-                var bulkData = [];
-
                 docs.rows.forEach(function ( row ) {
                     var index = ids.indexOf( row.id );
                     if ( ~index ) {
@@ -108,6 +110,8 @@
                 }
 
                 return db.bulkDocs( bulkData );
+            }).then(function () {
+                return arr ? bulkData : bulkData[ 0 ];
             });
         }
 

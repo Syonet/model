@@ -44,6 +44,19 @@ describe( "$modelCache", function () {
                 return expect( foo._db.get( "bar" ) ).to.be.fulfilled;
             });
         });
+
+        it( "should return the updated documents", function () {
+            var foo = model( "foo" );
+            var data = [{
+                _id: "foo",
+                foo: "bar"
+            }];
+
+            return expect( cache.set( foo, data ) ).to.eventually.have.deep.property(
+                "[0].foo",
+                "bar"
+            );
+        });
     });
 
     // ---------------------------------------------------------------------------------------------
@@ -74,6 +87,23 @@ describe( "$modelCache", function () {
                 _id: "foo"
             }).then(function () {
                 return expect( foo._db.get( "foo" ) ).to.be.fulfilled;
+            });
+        });
+
+        it( "should return extended data", function () {
+            var foo = model( "foo" );
+            var data = {
+                _id: "foo",
+                bar: "baz"
+            };
+
+            return cache.set( foo, data ).then(function () {
+                data.bar = "barbaz";
+                data.baz = true;
+                return expect( cache.extend( foo, data ) ).to.eventually.have.property(
+                    "bar",
+                    "barbaz"
+                );
             });
         });
     });
