@@ -42,7 +42,14 @@
             };
         };
 
-        provider.$get = function ( $q, $modelConfig, $modelRequest, $modelDB, modelSync ) {
+        provider.$get = function (
+            $q,
+            $modelConfig,
+            $modelRequest,
+            $modelDB,
+            $modelCache,
+            modelSync
+        ) {
             /**
              * @param   {Model} model
              * @param   {String} method
@@ -68,67 +75,6 @@
                     }
 
                     return $q.reject( err );
-                });
-            }
-
-            /**
-             * Updates a PouchDB cached value.
-             *
-             * @param   {Model} model
-             * @param   {*} data
-             * @param   {Boolean} [remove]
-             * @returns {Promise}
-             */
-            function updateCache ( model, data, remove ) {
-                var promises;
-                var ids = [];
-                var isCollection = !model.id();
-                data = isCollection ? data : [ data ];
-
-                // Force proper boolean value
-                remove = remove === true;
-
-                promises = data.map(function ( item ) {
-                    return isCollection ? model.id( item._id ).rev() : model.rev();
-                });
-
-                return $q.all( promises ).then(function ( revs ) {
-                    // Set the _rev and _deleted flags into each document
-                    data.forEach(function ( item, i ) {
-                        // Drop all properties starting with _ (except _id), as they're special for
-                        // PouchDB, and that would cause us problems while persisting the documents
-                        Object.keys( item ).forEach(function ( key ) {
-                            if ( key[ 0 ] === "_" && key !== "_id" ) {
-                                delete item[ key ];
-                            }
-                        });
-
-                        item.$order = i;
-                        item._rev = revs[ i ];
-                        item._deleted = remove;
-                        ids.push( item._id );
-                    });
-
-                    return isCollection && !remove ? model._db.allDocs() : {
-                        rows: []
-                    };
-                }).then(function ( toRemove ) {
-                    toRemove = toRemove.rows.filter(function ( row ) {
-                        return !~ids.indexOf( row.id );
-                    }).map(function ( row ) {
-                        return {
-                            _id: row.id,
-                            _rev: row.value.rev,
-                            _deleted: true
-                        };
-                    });
-
-                    return toRemove.length ? model._db.bulkDocs( toRemove ) : {};
-                }).then(function () {
-                    // Trigger the mass operation
-                    return model._db.bulkDocs( data );
-                }).then(function () {
-                    return isCollection ? data : data[ 0 ];
                 });
             }
 
@@ -310,7 +256,9 @@
                 }
 
                 return createRequest( self, "GET", query, options ).then(function ( data ) {
-                    return updateCache( self, data );
+                    return $modelCache.remove( self ).then(function () {
+                        return $modelCache.set( self, data );
+                    });
                 }, function ( err ) {
                     return fetchCacheOrThrow( self, err );
                 });
@@ -337,7 +285,7 @@
                 }
 
                 return createRequest( self, "GET", null, options ).then(function ( data ) {
-                    return updateCache( self, data );
+                    return $modelCache.set( self, data );
                 }, function ( err ) {
                     return fetchCacheOrThrow( self, err );
                 });
@@ -354,11 +302,31 @@
             Model.prototype.save = function ( data, options ) {
                 var self = this;
                 return createRequest( self, "POST", data, options ).then(function ( docs ) {
-                    if ( docs === SKIP_RESPONSE ) {
-                        return data;
+                    var id = self.id();
+                    var offline = docs === SKIP_RESPONSE;
+
+                    if ( offline ) {
+                        // When offline on collections, we'll do nothing
+                        if ( !id ) {
+                            return null;
+                        }
+
+                        // Otherwise, set the PouchDB's _id, so we can cache and retrieve this
+                        // entity later
+                        data._id = data._id || id;
+                        docs = data;
                     }
 
-                    return updateCache( self, docs );
+                    // We'll only update the cache if it's a single document
+                    if ( id || !angular.isArray( data ) ) {
+                        return $modelCache.set( self, docs );
+                    }
+
+                    // If it's a batch POST, then we'll only remove the data and return what
+                    // has been posted.
+                    return $modelCache.remove( self ).then(function () {
+                        return docs;
+                    });
                 });
             };
 
@@ -373,11 +341,26 @@
             Model.prototype.patch = function ( data, options ) {
                 var self = this;
                 return createRequest( this, "PATCH", data, options ).then(function ( docs ) {
+                    var id = self.id();
+
                     if ( docs === SKIP_RESPONSE ) {
-                        return data;
+                        // Can't update cache for what we don't know what the ID is
+                        // That's the case of batch patches on collections
+                        if ( !id ) {
+                            return null;
+                        }
+
+                        data._id = id;
+                        return $modelCache.extend( self, data );
                     }
 
-                    return updateCache( self, docs );
+                    if ( id ) {
+                        return $modelCache.set( self, docs );
+                    }
+
+                    return $modelCache.remove( self ).then(function () {
+                        return docs;
+                    });
                 });
             };
 
@@ -396,7 +379,7 @@
                     response = data;
                     return fetchCacheOrThrow( self, null );
                 }).then(function ( cached ) {
-                    return cached && updateCache( self, cached, true );
+                    return $modelCache.remove( self, cached );
                 }).then(function () {
                     return response === SKIP_RESPONSE ? null : response;
                 });

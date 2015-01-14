@@ -494,54 +494,187 @@ describe( "model", function () {
     // ---------------------------------------------------------------------------------------------
 
     describe( ".save()", function () {
-        it( "should do POST request and return response for collection", function () {
-            var promise;
-            var data = [{
-                id: "foo",
-                foo: "bar"
-            }];
+        describe( "when online", function () {
+            describe( "on a collection", function () {
+                it( "should do POST request and return response", function () {
+                    var promise;
+                    var data = [{
+                        id: "foo",
+                        foo: "bar"
+                    }];
 
-            $httpBackend.expectPOST( "/foo" ).respond( data );
-            promise = model( "foo" ).save( data );
-            testHelpers.flush();
+                    $httpBackend.expectPOST( "/foo" ).respond( data );
+                    promise = model( "foo" ).save( data );
+                    testHelpers.flush();
 
-            return expect( promise ).to.eventually.have.deep.property( "[0].foo", data.foo );
+                    return expect( promise ).to.eventually.have.deep.property(
+                        "[0].foo",
+                        data[ 0 ].foo
+                    );
+                });
+
+                it( "should wipe previous cache", function () {
+                    var promise;
+                    var foo = model( "foo" );
+                    var data = [{
+                        id: "foo"
+                    }];
+
+                    $httpBackend.expectPOST( "/foo" ).respond( data );
+                    promise = foo.save( data );
+                    testHelpers.flush();
+
+                    return promise.then(function () {
+                        data[ 0 ].id = "bar";
+                        $httpBackend.expectPOST( "/foo" ).respond( data );
+                        promise = foo.save( data );
+                        testHelpers.flush( true );
+
+                        return promise;
+                    }).then(function () {
+                        return expect( foo._db.get( "foo" ) ).to.be.rejected;
+                    });
+                });
+            });
+
+            // -------------------------------------------------------------------------------------
+
+            describe( "on an element", function () {
+                it( "should do POST request and return response", function () {
+                    var promise;
+                    var data = {
+                        foo: "bar"
+                    };
+
+                    $httpBackend.expectPOST( "/foo/bar" ).respond( data );
+                    promise = model( "foo" ).id( "bar" ).save( data );
+                    testHelpers.flush();
+
+                    return expect( promise ).to.eventually.have.property( "foo", data.foo );
+                });
+
+                it( "should update cached value", function () {
+                    var promise;
+                    var foobar = model( "foo" ).id( "bar" );
+                    var data = {
+                        id: "bar",
+                        foo: "bar"
+                    };
+
+                    $httpBackend.expectPOST( "/foo/bar" ).respond( data );
+                    promise = foobar.save( data );
+                    testHelpers.flush();
+
+                    return promise.then(function () {
+                        data.foo = "barbaz";
+
+                        $httpBackend.expectPOST( "/foo/bar" ).respond( data );
+                        promise = foobar.save( data );
+                        testHelpers.flush( true );
+
+                        return promise;
+                    }).then(function () {
+                        return expect( foobar._db.get( "bar" ) ).to.eventually.have.property(
+                            "foo",
+                            "barbaz"
+                        );
+                    });
+                });
+            });
         });
 
-        it( "should do POST request and return response for element", function () {
-            var promise;
-            var data = {
-                foo: "bar"
-            };
+        // -----------------------------------------------------------------------------------------
 
-            $httpBackend.expectPOST( "/foo/bar" ).respond( data );
-            promise = model( "foo" ).id( "bar" ).save( data );
-            testHelpers.flush();
+        describe( "when offline", function () {
+            it( "should store request", function () {
+                var promise;
+                var data = {
+                    foo: "bar"
+                };
 
-            return expect( promise ).to.eventually.have.property( "foo", data.foo );
-        });
+                $httpBackend.expectPOST( "/foo" ).respond( 0, null );
+                promise = model( "foo" ).save( data );
+                testHelpers.flush();
 
-        it( "should store request and return current data when offline", function () {
-            var promise;
-            var data = {
-                foo: "bar"
-            };
+                return promise.then(function () {
+                    return $modelDB( "__updates" ).allDocs({
+                        include_docs: true
+                    });
+                }).then(function ( docs ) {
+                    var doc = docs.rows[ 0 ].doc;
 
-            $httpBackend.expectPOST( "/foo" ).respond( 0, null );
-            promise = model( "foo" ).save( data );
-            testHelpers.flush();
+                    expect( doc ).to.have.property( "model", "/foo" );
+                    expect( doc ).to.have.property( "method", "POST" );
+                    expect( doc ).to.have.property( "data" ).and.eql( data );
+                    expect( doc ).to.have.property( "options" );
+                });
+            });
 
-            expect( promise ).to.eventually.equal( data );
+            // -------------------------------------------------------------------------------------
 
-            return $modelDB( "__updates" ).allDocs({
-                include_docs: true
-            }).then(function ( docs ) {
-                var doc = docs.rows[ 0 ].doc;
+            describe( "on a collection", function () {
+                it( "should return null", function () {
+                    var promise;
 
-                expect( doc ).to.have.property( "model", "/foo" );
-                expect( doc ).to.have.property( "method", "POST" );
-                expect( doc ).to.have.property( "data" ).and.eql( data );
-                expect( doc ).to.have.property( "options" );
+                    $httpBackend.expectPOST( "/foo" ).respond( 0 );
+                    promise = model( "foo" ).save({});
+                    testHelpers.flush();
+
+                    return expect( promise ).to.eventually.be.null;
+                });
+
+                it( "should not touch the cache", function () {
+                    var promise;
+                    var foo = model( "foo" );
+
+                    $httpBackend.expectPOST( "/foo" ).respond( 0 );
+                    promise = foo.save({});
+                    testHelpers.flush();
+
+                    return promise.then(function () {
+                        return expect( foo._db.allDocs() ).to.eventually.have.property(
+                            "total_rows",
+                            0
+                        );
+                    });
+                });
+            });
+
+            // -------------------------------------------------------------------------------------
+
+            describe( "on an element", function () {
+                it( "should return posted data", function () {
+                    var promise;
+                    var foobar = model( "foo" ).id( "bar" );
+                    var data = {
+                        foo: "bar"
+                    };
+
+                    $httpBackend.expectPOST( "/foo/bar" ).respond( 0 );
+                    promise = foobar.save( data );
+                    testHelpers.flush();
+
+                    return expect( promise ).to.eventually.equal( data );
+                });
+
+                it( "should update cached value", function () {
+                    var promise;
+                    var foobar = model( "foo" ).id( "bar" );
+                    var data = {
+                        foo: "bar"
+                    };
+
+                    $httpBackend.expectPOST( "/foo/bar" ).respond( 0 );
+                    promise = foobar.save( data );
+                    testHelpers.flush();
+
+                    return promise.then(function () {
+                        return expect( foobar._db.get( "bar" ) ).to.eventually.have.property(
+                            "foo",
+                            "bar"
+                        );
+                    });
+                });
             });
         });
     });
@@ -549,52 +682,153 @@ describe( "model", function () {
     // ---------------------------------------------------------------------------------------------
 
     describe( ".patch()", function () {
-        it( "should do PATCH request and return response for collection", function () {
-            var promise;
-            var data = [{
-                id: "foo",
-                foo: "bar"
-            }];
+        describe( "when online", function () {
+            it( "should do PATCH request and return response", function () {
+                var promise;
+                var data = [{
+                    id: "foo",
+                    foo: "bar"
+                }];
 
-            $httpBackend.expectPATCH( "/foo" ).respond( data );
-            promise = model( "foo" ).patch( data );
-            testHelpers.flush();
+                $httpBackend.expectPATCH( "/foo" ).respond( data );
+                promise = model( "foo" ).patch( data );
+                testHelpers.flush();
 
-            return expect( promise ).to.eventually.have.deep.property( "[0].foo", data[ 0 ].foo );
+                return expect( promise ).to.eventually.have.deep.property(
+                    "[0].foo",
+                    data[ 0 ].foo
+                );
+            });
+
+            // -------------------------------------------------------------------------------------
+
+            describe( "on a collection", function () {
+                it( "should wipe previous cache", function () {
+                    var promise;
+                    var foo = model( "foo" );
+                    var data = [{
+                        id: "foo"
+                    }];
+
+                    $httpBackend.expectPATCH( "/foo" ).respond( data );
+                    promise = foo.patch( data );
+                    testHelpers.flush();
+
+                    return promise.then(function () {
+                        return expect( foo._db.allDocs() ).to.eventually.have.property(
+                            "total_rows",
+                            0
+                        );
+                    });
+                });
+            });
+
+            // -------------------------------------------------------------------------------------
+
+            describe( "on an element", function () {
+                it( "should update cache", function () {
+                    var promise;
+                    var foobar = model( "foo" ).id( "bar" );
+
+                    $httpBackend.expectPATCH( "/foo/bar" ).respond({
+                        id: "bar",
+                        baz: "qux"
+                    });
+                    promise = foobar.patch({
+                        baz: "qux"
+                    });
+                    testHelpers.flush();
+
+                    return promise.then(function () {
+                        return expect( foobar._db.get( "bar" ) ).to.eventually.have.property(
+                            "baz",
+                            "qux"
+                        );
+                    });
+                });
+            });
         });
 
-        it( "should do PATCH request and return response for element", function () {
-            var promise;
-            var data = { foo: "bar" };
+        // -----------------------------------------------------------------------------------------
 
-            $httpBackend.expectPATCH( "/foo/bar" ).respond( data );
-            promise = model( "foo" ).id( "bar" ).patch( data );
-            testHelpers.flush();
+        describe( "when offline", function () {
+            it( "should store request", function () {
+                var promise;
+                var data = [{
+                    foo: "bar"
+                }];
 
-            return expect( promise ).to.eventually.have.property( "foo", data.foo );
-        });
+                $httpBackend.expectPATCH( "/foo" ).respond( 0, null );
+                promise = model( "foo" ).patch( data );
+                testHelpers.flush();
 
-        it( "should store request and return current data when offline", function () {
-            var promise;
-            var data = [{
-                foo: "bar"
-            }];
+                return promise.then(function () {
+                    return $modelDB( "__updates" ).allDocs({
+                        include_docs: true
+                    });
+                }).then(function ( docs ) {
+                    var doc = docs.rows[ 0 ].doc;
 
-            $httpBackend.expectPATCH( "/foo" ).respond( 0, null );
-            promise = model( "foo" ).patch( data );
-            testHelpers.flush();
+                    expect( doc ).to.have.property( "model", "/foo" );
+                    expect( doc ).to.have.property( "method", "PATCH" );
+                    expect( doc ).to.have.property( "data" ).and.eql( data );
+                    expect( doc ).to.have.property( "options" );
+                });
+            });
 
-            expect( promise ).to.eventually.equal( data );
+            // -------------------------------------------------------------------------------------
 
-            return $modelDB( "__updates" ).allDocs({
-                include_docs: true
-            }).then(function ( docs ) {
-                var doc = docs.rows[ 0 ].doc;
+            describe( "on a collection", function () {
+                it( "should return null", function () {
+                    var promise;
 
-                expect( doc ).to.have.property( "model", "/foo" );
-                expect( doc ).to.have.property( "method", "PATCH" );
-                expect( doc ).to.have.property( "data" ).and.eql( data );
-                expect( doc ).to.have.property( "options" );
+                    $httpBackend.expectPATCH( "/foo" ).respond( 0 );
+                    promise = model( "foo" ).patch({});
+                    testHelpers.flush();
+
+                    return expect( promise ).to.eventually.be.null;
+                });
+
+                it( "should not touch the cache", function () {
+                    var promise;
+                    var foo = model( "foo" );
+
+                    $httpBackend.expectPATCH( "/foo" ).respond( 0 );
+                    promise = foo.patch({});
+                    testHelpers.flush();
+
+                    return promise.then(function () {
+                        return expect( foo._db.allDocs() ).to.eventually.have.property(
+                            "total_rows",
+                            0
+                        );
+                    });
+                });
+            });
+
+            // -------------------------------------------------------------------------------------
+
+            describe( "on an element", function () {
+                it( "should extend current cache", function () {
+                    var promise;
+                    var foobar = model( "foo" ).id( "bar" );
+                    var data = {
+                        foo: "bar"
+                    };
+
+                    return foobar._db.put( data, "bar" ).then(function () {
+                        $httpBackend.expectPATCH( "/foo/bar" ).respond( 0 );
+                        promise = foobar.patch({
+                            foo: "barbaz"
+                        });
+                        testHelpers.flush( true );
+
+                        return promise;
+                    }).then(function () {
+                        promise = foobar._db.get( "bar" );
+                        return expect( promise ).to.eventually.have.property( "foo", "barbaz" );
+                    });
+                });
             });
         });
     });
@@ -602,46 +836,89 @@ describe( "model", function () {
     // ---------------------------------------------------------------------------------------------
 
     describe( ".remove()", function () {
-        it( "should do DELETE request and return response for collection", function () {
-            var promise;
-            $httpBackend.expectDELETE( "/foo" ).respond( 204 );
+        describe( "when online", function () {
+            it( "should do DELETE request and return response", function () {
+                var promise;
+                $httpBackend.expectDELETE( "/foo" ).respond( 204 );
 
-            promise = model( "foo" ).remove();
-            testHelpers.flush();
+                promise = model( "foo" ).remove();
+                testHelpers.flush();
 
-            return expect( promise ).to.eventually.be.undefined;
-        });
+                return expect( promise ).to.eventually.be.undefined;
+            });
 
-        it( "should do DELETE request and return response for element", function () {
-            var promise;
-            $httpBackend.expectDELETE( "/foo/bar" ).respond( 204 );
+            it( "should wipe previous cache", function () {
+                var promise;
+                var foobar = model( "foo" ).id( "bar" );
 
-            promise = model( "foo" ).id( "bar" ).remove();
-            testHelpers.flush();
-
-            return expect( promise ).to.eventually.be.undefined;
-        });
-
-        it( "should store request and return null when offline", function () {
-            var promise;
-
-            $httpBackend.expectDELETE( "/foo" ).respond( 0, null );
-            promise = model( "foo" ).remove();
-            testHelpers.flush();
-
-            return promise.then(function ( val ) {
-                expect( val ).to.equal( null );
-
-                return $modelDB( "__updates" ).allDocs({
-                    include_docs: true
+                $httpBackend.expectPOST( "/foo/bar" ).respond({
+                    id: "bar",
+                    foo: "bar"
                 });
-            }).then(function ( docs ) {
-                var doc = docs.rows[ 0 ].doc;
+                promise = foobar.save({});
+                testHelpers.flush();
 
-                expect( doc ).to.have.property( "model", "/foo" );
-                expect( doc ).to.have.property( "method", "DELETE" );
-                expect( doc ).to.have.property( "data", null );
-                expect( doc ).to.have.property( "options" );
+                return promise.then(function () {
+                    $httpBackend.expectDELETE( "/foo/bar" ).respond( 204 );
+                    promise = foobar.remove();
+                    testHelpers.flush( true );
+
+                    return promise;
+                }).then(function () {
+                    return expect( foobar._db.get( "bar" ) ).to.be.rejected;
+                });
+            });
+        });
+
+        // -----------------------------------------------------------------------------------------
+
+        describe( "when offline", function () {
+            it( "should store request", function () {
+                var promise;
+
+                $httpBackend.expectDELETE( "/foo" ).respond( 0, null );
+                promise = model( "foo" ).remove();
+                testHelpers.flush();
+
+                return promise.then(function () {
+                    return $modelDB( "__updates" ).allDocs({
+                        include_docs: true
+                    });
+                }).then(function ( docs ) {
+                    var doc = docs.rows[ 0 ].doc;
+
+                    expect( doc ).to.have.property( "model", "/foo" );
+                    expect( doc ).to.have.property( "method", "DELETE" );
+                    expect( doc ).to.have.property( "data", null );
+                    expect( doc ).to.have.property( "options" );
+                });
+            });
+
+            it( "should wipe previous cache", function () {
+                var promise;
+                var foo = model( "foo" );
+
+                $httpBackend.expectPOST( "/foo" ).respond([{
+                    id: "bar"
+                }, {
+                    id: "baz"
+                }]);
+                promise = foo.save({});
+                testHelpers.flush();
+
+                return promise.then(function () {
+                    $httpBackend.expectDELETE( "/foo/bar" ).respond( 0 );
+                    promise = foo.id( "bar" ).remove();
+                    testHelpers.flush( true );
+
+                    return promise;
+                }).then(function () {
+                    var promise = foo._db.allDocs();
+                    return expect( promise ).to.eventually.have.deep.property(
+                        "rows[0].id",
+                        "baz"
+                    );
+                });
             });
         });
     });
