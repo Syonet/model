@@ -92,7 +92,7 @@
                     return maybeThrow();
                 }
 
-                promise = id ? model._db.get( id ) : model._db.query( mapFn, {
+                promise = id ? model.db.get( id ) : model.db.query( mapFn, {
                     include_docs: true
                 });
 
@@ -123,7 +123,7 @@
                     throw new Error( "Model name must be supplied" );
                 }
 
-                this.__defineGetter__( "_db", function () {
+                this.__defineGetter__( "db", function () {
                     return $modelDB( name );
                 });
 
@@ -180,7 +180,7 @@
                 if ( !id ) {
                     throw new Error( "Can't get revision of a collection!" );
                 } else {
-                    this._db.get( id ).then(function ( doc ) {
+                    this.db.get( id ).then(function ( doc ) {
                         deferred.resolve( doc._rev );
                     }, function ( err ) {
                         if ( err.name === "not_found" ) {

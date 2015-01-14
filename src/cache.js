@@ -21,7 +21,7 @@
                 promise = $q.when();
             } else {
                 // If there's no data, we'll remove everything from the DB
-                promise = model._db.allDocs().then(function ( docs ) {
+                promise = model.db.allDocs().then(function ( docs ) {
                     data = docs.rows.map(function ( row ) {
                         return {
                             _id: row.id
@@ -49,7 +49,7 @@
                     return item._rev;
                 });
 
-                return data.length ? model._db.bulkDocs( data ) : [];
+                return data.length ? model.db.bulkDocs( data ) : [];
             });
         }
 
@@ -80,7 +80,7 @@
                     item._rev = revs[ i ];
                 });
 
-                return model._db.bulkDocs( data );
+                return model.db.bulkDocs( data );
             }).then(function () {
                 return arr ? data : data[ 0 ];
             });
@@ -98,7 +98,7 @@
             var ids;
             // Will store data that's going to be updated
             var bulkData = [];
-            var db = model._db;
+            var db = model.db;
             var arr = angular.isArray( data );
             data = arr ? data : [ data ];
 

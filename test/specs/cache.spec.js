@@ -14,7 +14,7 @@ describe( "$modelCache", function () {
             return cache.set( foo, {
                 _id: "foo"
             }).then(function () {
-                return expect( foo._db.get( "foo" ) ).to.be.fulfilled;
+                return expect( foo.db.get( "foo" ) ).to.be.fulfilled;
             });
         });
 
@@ -28,7 +28,7 @@ describe( "$modelCache", function () {
                 data.bar = "baz";
                 return cache.set( foo, data );
             }).then(function () {
-                return expect( foo._db.get( "foo" ) ).to.eventually.have.property( "bar", "baz" );
+                return expect( foo.db.get( "foo" ) ).to.eventually.have.property( "bar", "baz" );
             });
         });
 
@@ -39,9 +39,9 @@ describe( "$modelCache", function () {
             }, {
                 _id: "bar"
             }]).then(function () {
-                return expect( foo._db.get( "foo" ) ).to.be.fulfilled;
+                return expect( foo.db.get( "foo" ) ).to.be.fulfilled;
             }).then(function () {
-                return expect( foo._db.get( "bar" ) ).to.be.fulfilled;
+                return expect( foo.db.get( "bar" ) ).to.be.fulfilled;
             });
         });
 
@@ -74,7 +74,7 @@ describe( "$modelCache", function () {
                 data.baz = true;
                 return cache.extend( foo, data );
             }).then(function () {
-                return foo._db.get( "foo" );
+                return foo.db.get( "foo" );
             }).then(function ( doc ) {
                 expect( doc ).to.have.property( "bar", "barbaz" );
                 expect( doc ).to.have.property( "baz", true );
@@ -86,7 +86,7 @@ describe( "$modelCache", function () {
             return cache.extend( foo, {
                 _id: "foo"
             }).then(function () {
-                return expect( foo._db.get( "foo" ) ).to.be.fulfilled;
+                return expect( foo.db.get( "foo" ) ).to.be.fulfilled;
             });
         });
 
@@ -122,7 +122,7 @@ describe( "$modelCache", function () {
                     _id: "foo"
                 });
             }).then(function () {
-                return expect( foo._db.allDocs() ).to.eventually.have.property( "total_rows", 1 );
+                return expect( foo.db.allDocs() ).to.eventually.have.property( "total_rows", 1 );
             });
         });
 
@@ -133,7 +133,7 @@ describe( "$modelCache", function () {
             }).then(function () {
                 return cache.remove( foo );
             }).then(function () {
-                return expect( foo._db.allDocs() ).to.eventually.have.property( "total_rows", 0 );
+                return expect( foo.db.allDocs() ).to.eventually.have.property( "total_rows", 0 );
             });
         });
     });

@@ -210,7 +210,7 @@ describe( "model", function () {
             var rev;
             var foo = model( "foo" );
 
-            return foo._db.put({
+            return foo.db.put({
                 foo: "bar"
             }, "bar" ).then(function ( doc ) {
                 rev = doc.rev;
@@ -225,7 +225,7 @@ describe( "model", function () {
             var foobar = model( "foo" ).id( "bar" );
 
             inject(function ( $q ) {
-                sinon.stub( foobar._db, "get", function () {
+                sinon.stub( foobar.db, "get", function () {
                     return $q.reject( err );
                 });
             });
@@ -274,7 +274,7 @@ describe( "model", function () {
             var promise;
             var data = { foo: "bar" };
             var foo = model( "foo" );
-            var stub = sinon.stub( foo._db, "query" ).withArgs( sinon.match.func, sinon.match({
+            var stub = sinon.stub( foo.db, "query" ).withArgs( sinon.match.func, sinon.match({
                 include_docs: true
             }));
 
@@ -455,7 +455,7 @@ describe( "model", function () {
             var promise;
             var data = { foo: "bar" };
             var foobar = model( "foo" ).id( "bar" );
-            var stub = sinon.stub( foobar._db, "get" ).withArgs( "bar" );
+            var stub = sinon.stub( foobar.db, "get" ).withArgs( "bar" );
 
             stub.returns( $q.when({
                 doc: data
@@ -532,7 +532,7 @@ describe( "model", function () {
 
                         return promise;
                     }).then(function () {
-                        return expect( foo._db.get( "foo" ) ).to.be.rejected;
+                        return expect( foo.db.get( "foo" ) ).to.be.rejected;
                     });
                 });
             });
@@ -574,7 +574,7 @@ describe( "model", function () {
 
                         return promise;
                     }).then(function () {
-                        return expect( foobar._db.get( "bar" ) ).to.eventually.have.property(
+                        return expect( foobar.db.get( "bar" ) ).to.eventually.have.property(
                             "foo",
                             "barbaz"
                         );
@@ -632,7 +632,7 @@ describe( "model", function () {
                     testHelpers.flush();
 
                     return promise.then(function () {
-                        return expect( foo._db.allDocs() ).to.eventually.have.property(
+                        return expect( foo.db.allDocs() ).to.eventually.have.property(
                             "total_rows",
                             0
                         );
@@ -669,7 +669,7 @@ describe( "model", function () {
                     testHelpers.flush();
 
                     return promise.then(function () {
-                        return expect( foobar._db.get( "bar" ) ).to.eventually.have.property(
+                        return expect( foobar.db.get( "bar" ) ).to.eventually.have.property(
                             "foo",
                             "bar"
                         );
@@ -715,7 +715,7 @@ describe( "model", function () {
                     testHelpers.flush();
 
                     return promise.then(function () {
-                        return expect( foo._db.allDocs() ).to.eventually.have.property(
+                        return expect( foo.db.allDocs() ).to.eventually.have.property(
                             "total_rows",
                             0
                         );
@@ -740,7 +740,7 @@ describe( "model", function () {
                     testHelpers.flush();
 
                     return promise.then(function () {
-                        return expect( foobar._db.get( "bar" ) ).to.eventually.have.property(
+                        return expect( foobar.db.get( "bar" ) ).to.eventually.have.property(
                             "baz",
                             "qux"
                         );
@@ -798,7 +798,7 @@ describe( "model", function () {
                     testHelpers.flush();
 
                     return promise.then(function () {
-                        return expect( foo._db.allDocs() ).to.eventually.have.property(
+                        return expect( foo.db.allDocs() ).to.eventually.have.property(
                             "total_rows",
                             0
                         );
@@ -816,7 +816,7 @@ describe( "model", function () {
                         foo: "bar"
                     };
 
-                    return foobar._db.put( data, "bar" ).then(function () {
+                    return foobar.db.put( data, "bar" ).then(function () {
                         $httpBackend.expectPATCH( "/foo/bar" ).respond( 0 );
                         promise = foobar.patch({
                             foo: "barbaz"
@@ -825,7 +825,7 @@ describe( "model", function () {
 
                         return promise;
                     }).then(function () {
-                        promise = foobar._db.get( "bar" );
+                        promise = foobar.db.get( "bar" );
                         return expect( promise ).to.eventually.have.property( "foo", "barbaz" );
                     });
                 });
@@ -865,7 +865,7 @@ describe( "model", function () {
 
                     return promise;
                 }).then(function () {
-                    return expect( foobar._db.get( "bar" ) ).to.be.rejected;
+                    return expect( foobar.db.get( "bar" ) ).to.be.rejected;
                 });
             });
         });
@@ -913,7 +913,7 @@ describe( "model", function () {
 
                     return promise;
                 }).then(function () {
-                    var promise = foo._db.allDocs();
+                    var promise = foo.db.allDocs();
                     return expect( promise ).to.eventually.have.deep.property(
                         "rows[0].id",
                         "baz"

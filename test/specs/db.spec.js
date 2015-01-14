@@ -46,7 +46,7 @@ describe( "$modelDB", function () {
             var promise;
 
             provider.dbNamePrefix = "model";
-            promise = model( "foo" )._db.info();
+            promise = model( "foo" ).db.info();
 
             return expect( promise ).to.eventually.have.property( "db_name", "model.foo" );
         });
