@@ -102,6 +102,21 @@ describe( "modelSync", function () {
         expect( sync.$$running ).to.be.ok;
     }));
 
+    it( "should remove sent requests", function () {
+        var stores = [
+            sync.store( "/", "POST" ),
+            sync.store( "/foo", "PATCH" )
+        ];
+
+        req.withArgs( "/foo", "PATCH" ).returns( $q.reject({
+            status: 0
+        }));
+
+        return $q.all( stores ).then( sync ).then(function () {
+            return expect( db.allDocs() ).to.eventually.have.property( "total_rows", 1 );
+        });
+    });
+
     // ---------------------------------------------------------------------------------------------
 
     describe( ".schedule( delay )", function () {

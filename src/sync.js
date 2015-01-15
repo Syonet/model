@@ -11,6 +11,9 @@
             var db = $modelDB( UPDATE_DB_NAME );
 
             function sync () {
+                // Will store the requests sent, so they can be removed later
+                var sentReqs = [];
+
                 if ( sync.$$running ) {
                     return;
                 }
@@ -30,27 +33,49 @@
                             doc.method,
                             doc.data,
                             doc.options
-                        );
+                        ).then(function ( response ) {
+                            sentReqs.push({
+                                _id: row.id,
+                                _rev: row.value.rev
+                            });
+                            return response;
+                        }, function ( err ) {
+                            // We'll only remove requests which failed in the server.
+                            // Aborted/timed out requests will stay in our cache.
+                            if ( err.status !== 0 ) {
+                                sentReqs.push({
+                                    _id: row.id,
+                                    _rev: row.value.rev
+                                });
+                            }
+
+                            return $q.reject( err );
+                        });
                         promises.push( promise );
                     });
 
                     return $q.all( promises );
                 }).then(function ( values ) {
-                    clear();
-
                     // Don't emit if there were no resolved values
                     if ( values.length ) {
                         sync.emit( "success" );
                     }
-                }, function ( err ) {
-                    clear();
 
+                    return clear();
+                }, function ( err ) {
                     // Pass the error to the callbacks whatever it is
                     sync.emit( "error", err );
+
+                    return clear();
                 });
 
                 function clear () {
                     sync.$$running = false;
+
+                    sentReqs.forEach(function ( doc ) {
+                        doc._deleted = true;
+                    });
+                    return db.bulkDocs( sentReqs );
                 }
             }
 
