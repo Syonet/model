@@ -30,4 +30,14 @@ describe( "$modelConfig", function () {
             expect( localStorage.getItem( "$model.__config" ) ).to.equal( "{}" );
         });
     });
+
+    // ---------------------------------------------------------------------------------------------
+
+    describe( ".clear()", function () {
+        it( "should clear the current configuration", function () {
+            cfg.set({});
+            cfg.clear();
+            expect( localStorage.getItem( "$model.__config" ) ).to.not.be.ok;
+        });
+    });
 });

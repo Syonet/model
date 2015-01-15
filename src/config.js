@@ -10,6 +10,9 @@
         var storage = $window.localStorage;
 
         return {
+            clear: function () {
+                storage.removeItem( MODEL_CFG_KEY );
+            },
             get: function () {
                 var stored = storage.getItem( MODEL_CFG_KEY );
                 return stored && JSON.parse( stored ) || {};
