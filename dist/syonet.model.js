@@ -8,6 +8,173 @@
 !function () {
     "use strict";
 
+    angular.module( "syonet.model" ).factory( "$modelCache", cacheService );
+
+    function cacheService ( $q ) {
+        /**
+         * Remove every document passed, or the entire DB if nothing passed.
+         *
+         * @param   {Model} model
+         * @param   {Object|Object[]} data
+         * @returns {Promise}
+         */
+        function remove ( model, data ) {
+            var arr, promise;
+            var coll = !model.id();
+
+            if ( data ) {
+                arr = angular.isArray( data );
+                data = arr ? data : [ data ];
+                promise = $q.when();
+            } else {
+                // If there's no data, we'll remove everything from the DB
+                promise = model.db.allDocs().then(function ( docs ) {
+                    data = docs.rows.map(function ( row ) {
+                        return {
+                            _id: row.id
+                        };
+                    });
+                });
+            }
+
+            return promise.then(function () {
+                // Find the current revision of each item in the data array
+                var promises = data.map( function ( item ) {
+                    item = arr || coll ? model.id( item._id ) : model;
+                    return item.rev();
+                });
+
+                return $q.all( promises );
+            }).then(function ( revs ) {
+                data = revs.map(function ( rev, i ) {
+                    return {
+                        _id: data[ i ]._id,
+                        _rev: rev,
+                        _deleted: true
+                    };
+                }).filter(function ( item ) {
+                    return item._rev;
+                });
+
+                return data.length ? model.db.bulkDocs( data ) : [];
+            });
+        }
+
+        /**
+         * Replace the data of each document passed.
+         * If some item in the data array doesn't exist, then it'll be inserted.
+         *
+         * @param   {Model} model
+         * @param   {Object|Object[]} data
+         * @returns {Promise}
+         */
+        function set ( model, data ) {
+            var promises;
+            var coll = !model.id();
+            var arr = angular.isArray( data );
+            data = arr ? data : [ data ];
+
+            // Find the current revision of each item in the data array
+            promises = data.map(function ( item ) {
+                item = arr || coll ? model.id( item._id ) : model;
+                return item.rev();
+            });
+
+            return $q.all( promises ).then(function ( revs ) {
+                data.forEach(function ( item, i ) {
+                    removeSpecialKeys( item );
+                    item.$order = i;
+                    item._rev = revs[ i ];
+                });
+
+                return model.db.bulkDocs( data );
+            }).then(function () {
+                return arr ? data : data[ 0 ];
+            });
+        }
+
+        /**
+         * Extend the original data of each document passed.
+         * If some item in the data array doesn't exist, then it'll be inserted.
+         *
+         * @param   {Model} model
+         * @param   {Object|Object[]} data
+         * @returns {Promise}
+         */
+        function extend ( model, data ) {
+            var ids;
+            // Will store data that's going to be updated
+            var bulkData = [];
+            var db = model.db;
+            var arr = angular.isArray( data );
+            data = arr ? data : [ data ];
+
+            // Find the ID of each posted item, for easier manipulation later
+            ids = data.map(function ( item ) {
+                return item._id;
+            });
+
+            return db.allDocs({
+                include_docs: true
+            }).then(function ( docs ) {
+                docs.rows.forEach(function ( row ) {
+                    var index = ids.indexOf( row.id );
+                    if ( ~index ) {
+                        // Strip special keys (ie "_foo") first
+                        removeSpecialKeys( data[ index ] );
+
+                        // Extend current document with the corresponding posted document
+                        row = angular.extend( row.doc, data[ index ] );
+                        bulkData.push( row );
+
+                        // And remove its ID and data from helper/posted data arrays
+                        ids.splice( index, 1 );
+                        data.splice( index, 1 );
+                    }
+                });
+
+                // If there's data left in the original data array, we'll insert them
+                // instead of extending
+                if ( data.length ) {
+                    data.forEach(function ( item ) {
+                        removeSpecialKeys( item );
+                        bulkData.push( item );
+                    });
+                }
+
+                return db.bulkDocs( bulkData );
+            }).then(function () {
+                return arr ? bulkData : bulkData[ 0 ];
+            });
+        }
+
+        /**
+         * Remove special properties for PouchDB from an item
+         *
+         * Removes all properties starting with _ (except _id), as they're special for PouchDB, and
+         * that would cause problems while persisting the documents
+         *
+         * @param   {Object} item
+         */
+        function removeSpecialKeys ( item ) {
+            Object.keys( item ).forEach(function ( key ) {
+                if ( key[ 0 ] === "_" && key !== "_id" ) {
+                    delete item[ key ];
+                }
+            });
+        }
+
+        return {
+            remove: remove,
+            set: set,
+            extend: extend
+        };
+    }
+    cacheService.$inject = ["$q"];
+}();
+!function () {
+    "use strict";
+
     angular.module( "syonet.model" ).factory( "$modelConfig", configService );
 
     function configService ( $window ) {
@@ -17,6 +184,9 @@
         var storage = $window.localStorage;
 
         return {
+            clear: function () {
+                storage.removeItem( MODEL_CFG_KEY );
+            },
             get: function () {
                 var stored = storage.getItem( MODEL_CFG_KEY );
                 return stored && JSON.parse( stored ) || {};
@@ -98,15 +268,6 @@
         provider.idFieldHeader = "X-Id-Field";
 
         /**
-         * The name of an alternative header that will contain the Content-Length, in case
-         * the server provides it.
-         * Useful when computing the length of a response which has Transfer-Encoding: chunked
-         *
-         * @type    {String}
-         */
-        provider.altContentLengthHeader = "X-Content-Length";
-
-        /**
          * Get/set the username and password used for authentication.
          *
          * @param   {String} [username]
@@ -123,7 +284,14 @@
             };
         };
 
-        provider.$get = function ( $q, $modelConfig, $modelRequest, $modelDB, modelSync ) {
+        provider.$get = function (
+            $q,
+            $modelConfig,
+            $modelRequest,
+            $modelDB,
+            $modelCache,
+            modelSync
+        ) {
             /**
              * @param   {Model} model
              * @param   {String} method
@@ -153,67 +321,6 @@
             }
 
             /**
-             * Updates a PouchDB cached value.
-             *
-             * @param   {Model} model
-             * @param   {*} data
-             * @param   {Boolean} [remove]
-             * @returns {Promise}
-             */
-            function updateCache ( model, data, remove ) {
-                var promises;
-                var ids = [];
-                var isCollection = !model.id();
-                data = isCollection ? data : [ data ];
-
-                // Force proper boolean value
-                remove = remove === true;
-
-                promises = data.map(function ( item ) {
-                    return isCollection ? model.id( item._id ).rev() : model.rev();
-                });
-
-                return $q.all( promises ).then(function ( revs ) {
-                    // Set the _rev and _deleted flags into each document
-                    data.forEach(function ( item, i ) {
-                        // Drop all properties starting with _ (except _id), as they're special for
-                        // PouchDB, and that would cause us problems while persisting the documents
-                        Object.keys( item ).forEach(function ( key ) {
-                            if ( key[ 0 ] === "_" && key !== "_id" ) {
-                                delete item[ key ];
-                            }
-                        });
-
-                        item.$order = i;
-                        item._rev = revs[ i ];
-                        item._deleted = remove;
-                        ids.push( item._id );
-                    });
-
-                    return isCollection && !remove ? model._db.allDocs() : {
-                        rows: []
-                    };
-                }).then(function ( toRemove ) {
-                    toRemove = toRemove.rows.filter(function ( row ) {
-                        return !~ids.indexOf( row.id );
-                    }).map(function ( row ) {
-                        return {
-                            _id: row.id,
-                            _rev: row.value.rev,
-                            _deleted: true
-                        };
-                    });
-
-                    return toRemove.length ? model._db.bulkDocs( toRemove ) : {};
-                }).then(function () {
-                    // Trigger the mass operation
-                    return model._db.bulkDocs( data );
-                }).then(function () {
-                    return isCollection ? data : data[ 0 ];
-                });
-            }
-
-            /**
              * Fetches a PouchDB cached value (if there's no connection) or throws an error.
              *
              * @param   {Model} model
@@ -236,7 +343,7 @@
                     return maybeThrow();
                 }
 
-                promise = id ? model._db.get( id ) : model._db.query( mapFn, {
+                promise = id ? model.db.get( id ) : model.db.query( mapFn, {
                     include_docs: true
                 });
 
@@ -267,7 +374,7 @@
                     throw new Error( "Model name must be supplied" );
                 }
 
-                this.__defineGetter__( "_db", function () {
+                this.__defineGetter__( "db", function () {
                     return $modelDB( name );
                 });
 
@@ -324,7 +431,7 @@
                 if ( !id ) {
                     throw new Error( "Can't get revision of a collection!" );
                 } else {
-                    this._db.get( id ).then(function ( doc ) {
+                    this.db.get( id ).then(function ( doc ) {
                         deferred.resolve( doc._rev );
                     }, function ( err ) {
                         if ( err.name === "not_found" ) {
@@ -391,7 +498,9 @@
                 }
 
                 return createRequest( self, "GET", query, options ).then(function ( data ) {
-                    return updateCache( self, data );
+                    return $modelCache.remove( self ).then(function () {
+                        return $modelCache.set( self, data );
+                    });
                 }, function ( err ) {
                     return fetchCacheOrThrow( self, err );
                 });
@@ -409,24 +518,16 @@
              * @returns {Promise}
              */
             Model.prototype.get = function ( id, options ) {
-                var msg;
                 var self = this;
 
                 if ( !this.id() ) {
-                    if ( id ) {
-                        self = this.id( id );
-                    } else {
-                        msg =
-                            "Can't invoke .get() in a collection without specifying " +
-                            "child element ID.";
-                        throw new Error( msg );
-                    }
+                    self = id ? this.id( id ) : self;
                 } else {
                     options = id;
                 }
 
                 return createRequest( self, "GET", null, options ).then(function ( data ) {
-                    return updateCache( self, data );
+                    return $modelCache.set( self, data );
                 }, function ( err ) {
                     return fetchCacheOrThrow( self, err );
                 });
@@ -443,11 +544,31 @@
             Model.prototype.save = function ( data, options ) {
                 var self = this;
                 return createRequest( self, "POST", data, options ).then(function ( docs ) {
-                    if ( docs === SKIP_RESPONSE ) {
-                        return data;
+                    var id = self.id();
+                    var offline = docs === SKIP_RESPONSE;
+
+                    if ( offline ) {
+                        // When offline on collections, we'll do nothing
+                        if ( !id ) {
+                            return null;
+                        }
+
+                        // Otherwise, set the PouchDB's _id, so we can cache and retrieve this
+                        // entity later
+                        data._id = data._id || id;
+                        docs = data;
                     }
 
-                    return updateCache( self, docs );
+                    // We'll only update the cache if it's a single document
+                    if ( id || !angular.isArray( data ) ) {
+                        return $modelCache.set( self, docs );
+                    }
+
+                    // If it's a batch POST, then we'll only remove the data and return what
+                    // has been posted.
+                    return $modelCache.remove( self ).then(function () {
+                        return docs;
+                    });
                 });
             };
 
@@ -462,11 +583,26 @@
             Model.prototype.patch = function ( data, options ) {
                 var self = this;
                 return createRequest( this, "PATCH", data, options ).then(function ( docs ) {
+                    var id = self.id();
+
                     if ( docs === SKIP_RESPONSE ) {
-                        return data;
+                        // Can't update cache for what we don't know what the ID is
+                        // That's the case of batch patches on collections
+                        if ( !id ) {
+                            return null;
+                        }
+
+                        data._id = id;
+                        return $modelCache.extend( self, data );
                     }
 
-                    return updateCache( self, docs );
+                    if ( id ) {
+                        return $modelCache.set( self, docs );
+                    }
+
+                    return $modelCache.remove( self ).then(function () {
+                        return docs;
+                    });
                 });
             };
 
@@ -485,7 +621,7 @@
                     response = data;
                     return fetchCacheOrThrow( self, null );
                 }).then(function ( cached ) {
-                    return cached && updateCache( self, cached, true );
+                    return $modelCache.remove( self, cached );
                 }).then(function () {
                     return response === SKIP_RESPONSE ? null : response;
                 });
@@ -588,6 +724,32 @@
 !function () {
     "use strict";
 
+    angular.module( "syonet.model" ).config( createPluginMethods );
+
+    function createPluginMethods ( pouchDBProvider, POUCHDB_DEFAULT_METHODS ) {
+        var plugins = {
+            patch: patch
+        };
+
+        PouchDB.plugin( plugins );
+        pouchDBProvider.methods = POUCHDB_DEFAULT_METHODS.concat( Object.keys( plugins ) );
+
+        // -----------------------------------------------------------------------------------------
+
+        function patch ( patches, id, callback ) {
+            var db = this;
+
+            return db.get( String( id ) ).then(function ( doc ) {
+                angular.extend( doc, patches );
+                return db.put( doc, id, doc._rev, callback );
+            }, callback );
+        }
+    }
+    createPluginMethods.$inject = ["pouchDBProvider", "POUCHDB_DEFAULT_METHODS"];
+}();
+!function () {
+    "use strict";
+
     angular.module( "syonet.model" ).provider( "$modelRequest", requestProvider );
 
     function requestProvider () {
@@ -606,6 +768,15 @@
          * @param   {Number}
          */
         provider.pingDelay = 60000;
+
+        /**
+         * The name of an alternative header that will contain the Content-Length, in case
+         * the server provides it.
+         * Useful when computing the length of a response which has Transfer-Encoding: chunked
+         *
+         * @type    {String}
+         */
+        provider.altContentLengthHeader = "X-Content-Length";
 
         provider.$get = function ( $timeout, $q, $http, $window ) {
             var currPing;
