@@ -57,6 +57,20 @@ describe( "$modelCache", function () {
                 "bar"
             );
         });
+
+        it( "should store parents", function () {
+            var baz = model( "foo" ).id( "bar" ).model( "baz" ).id( "qux" );
+            return cache.set( baz, {
+                _id: "qux"
+            }).then(function ( doc ) {
+                expect( doc.$parents ).to.eql({
+                    foo: {
+                        $id: "bar",
+                        $parents: {}
+                    }
+                });
+            });
+        });
     });
 
     // ---------------------------------------------------------------------------------------------

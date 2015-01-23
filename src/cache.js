@@ -76,6 +76,7 @@
             return $q.all( promises ).then(function ( revs ) {
                 data.forEach(function ( item, i ) {
                     removeSpecialKeys( item );
+                    createRelations( item, model );
                     item.$order = i;
                     item._rev = revs[ i ];
                 });
@@ -155,6 +156,24 @@
                     delete item[ key ];
                 }
             });
+        }
+
+        /**
+         * Create relations with parent models
+         *
+         * @param   {Object} item
+         * @param   {Model} model
+         */
+        function createRelations ( item, model ) {
+            var obj = item.$parents = item.$parents || {};
+
+            while ( model = model._parent ) {
+                obj[ model._path.name ] = {
+                    $id: model._path.id,
+                    $parents: {}
+                };
+                obj = obj[ model._path.name ].$parents;
+            }
         }
 
         return {
