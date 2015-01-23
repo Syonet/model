@@ -179,6 +179,16 @@ describe( "$modelCache", function () {
                 });
             });
         });
+
+        it( "should reject whwen no document with same parents exist", function () {
+            var m1 = model( "foo" ).id( "bar" ).model( "baz" );
+            var m2 = model( "foo" ).id( "barbaz" ).model( "baz" );
+            return cache.set( m1, {
+                _id: "qux"
+            }).then(function () {
+                return expect( cache.getOne( m2 ) ).to.be.rejected;
+            });
+        });
     });
 
     // ---------------------------------------------------------------------------------------------
