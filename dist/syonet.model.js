@@ -83,6 +83,7 @@
             return $q.all( promises ).then(function ( revs ) {
                 data.forEach(function ( item, i ) {
                     removeSpecialKeys( item );
+                    createRelations( item, model );
                     item.$order = i;
                     item._rev = revs[ i ];
                 });
@@ -90,6 +91,46 @@
                 return model.db.bulkDocs( data );
             }).then(function () {
                 return arr ? data : data[ 0 ];
+            });
+        }
+
+        /**
+         * Get one document for a Model.
+         * If it's a collection, will try to match parents of each cached document.
+         *
+         * @param   {Model} model
+         * @returns {Promise}
+         */
+        function getOne ( model ) {
+            var id = model.id();
+            return id ? model.db.get( id ) : model.db.allDocs({
+                include_docs: true
+            }).then(function ( data ) {
+                var i, doc;
+                for ( i = 0; i < data.total_rows; i++ ) {
+                    doc = data.rows[ i ].doc;
+                    if ( checkRelations( doc, model ) ) {
+                        return doc;
+                    }
+                }
+
+                return $q.reject();
+            });
+        }
+
+        /**
+         * Get all documents for a Model.
+         *
+         * @param   {Model} model
+         * @returns {Promise}
+         */
+        function getAll ( model ) {
+            return model.db.query( mapFn, {
+                include_docs: true
+            }).then(function ( data ) {
+                return data.rows.map(function ( item ) {
+                    return item.doc;
+                });
             });
         }
 
@@ -164,10 +205,58 @@
             });
         }
 
+        /**
+         * Create relations with parent models
+         *
+         * @param   {Object} item
+         * @param   {Model} model
+         */
+        function createRelations ( item, model ) {
+            var obj = item.$parents = item.$parents || {};
+
+            while ( model = model._parent ) {
+                obj[ model._path.name ] = {
+                    $id: model._path.id,
+                    $parents: {}
+                };
+                obj = obj[ model._path.name ].$parents;
+            }
+        }
+
+        /**
+         * Check whether relations between an DB item and the Model are the same.
+         *
+         * @param   {Object} item
+         * @param   {Model} model
+         * @returns {boolean}
+         */
+        function checkRelations ( item, model ) {
+            while ( model = model._parent ) {
+                item = ( item.$parents || {} )[ model._path.name ];
+                if ( !item || item.$id !== model._path.id ) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        /**
+         * Map function for when listing docs offline.
+         * Emits them in the order they were fetched.
+         *
+         * @param   {Object} doc
+         */
+        function mapFn ( doc ) {
+            emit( doc.$order );
+        }
+
         return {
             remove: remove,
             set: set,
-            extend: extend
+            extend: extend,
+            getOne: getOne,
+            getAll: getAll
         };
     }
     cacheService.$inject = ["$q"];
@@ -324,12 +413,12 @@
              * Fetches a PouchDB cached value (if there's no connection) or throws an error.
              *
              * @param   {Model} model
+             * @param   {Boolean} single
              * @param   {Error} err
              * @returns {Promise}
              */
-            function fetchCacheOrThrow ( model, err ) {
+            function fetchCacheOrThrow ( model, single, err ) {
                 var promise;
-                var id = model.id();
                 var offline = err && err.status === 0;
                 var maybeThrow = function () {
                     return $q(function ( resolve, reject ) {
@@ -343,20 +432,15 @@
                     return maybeThrow();
                 }
 
-                promise = id ? model.db.get( id ) : model.db.query( mapFn, {
-                    include_docs: true
-                });
-
+                promise = single ? $modelCache.getOne( model ) : $modelCache.getAll( model );
                 return promise.then(function ( data ) {
                     // If we're dealing with a collection which has no cached values,
                     // we must throw
-                    if ( !id && !data.rows.length && err ) {
+                    if ( !single && !data.length && err ) {
                         return $q.reject( err );
                     }
 
-                    return id ? data.doc : data.rows.map(function ( item ) {
-                        return item.doc;
-                    });
+                    return data;
                 }, maybeThrow );
             }
 
@@ -502,7 +586,7 @@
                         return $modelCache.set( self, data );
                     });
                 }, function ( err ) {
-                    return fetchCacheOrThrow( self, err );
+                    return fetchCacheOrThrow( self, false, err );
                 });
             };
 
@@ -529,7 +613,7 @@
                 return createRequest( self, "GET", null, options ).then(function ( data ) {
                     return $modelCache.set( self, data );
                 }, function ( err ) {
-                    return fetchCacheOrThrow( self, err );
+                    return fetchCacheOrThrow( self, true, err );
                 });
             };
 
@@ -619,7 +703,7 @@
 
                 return createRequest( self, "DELETE", null, options ).then(function ( data ) {
                     response = data;
-                    return fetchCacheOrThrow( self, null );
+                    return fetchCacheOrThrow( self, !!self.id(), null );
                 }).then(function ( cached ) {
                     return $modelCache.remove( self, cached );
                 }).then(function () {
@@ -708,16 +792,6 @@
             return url.replace( /\/\//g, function ( match, index ) {
                 return /https?:/.test( url.substr( 0, index ) ) ? match : "/";
             });
-        }
-
-        /**
-         * Map function for when listing docs offline.
-         * Emits them in the order they were fetched.
-         *
-         * @param   {Object} doc
-         */
-        function mapFn ( doc ) {
-            emit( doc.$order );
         }
     }
 }();
