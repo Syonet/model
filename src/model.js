@@ -73,12 +73,12 @@
              * Fetches a PouchDB cached value (if there's no connection) or throws an error.
              *
              * @param   {Model} model
+             * @param   {Boolean} single
              * @param   {Error} err
              * @returns {Promise}
              */
-            function fetchCacheOrThrow ( model, err ) {
+            function fetchCacheOrThrow ( model, single, err ) {
                 var promise;
-                var id = model.id();
                 var offline = err && err.status === 0;
                 var maybeThrow = function () {
                     return $q(function ( resolve, reject ) {
@@ -92,20 +92,15 @@
                     return maybeThrow();
                 }
 
-                promise = id ? model.db.get( id ) : model.db.query( mapFn, {
-                    include_docs: true
-                });
-
+                promise = single ? $modelCache.getOne( model ) : $modelCache.getAll( model );
                 return promise.then(function ( data ) {
                     // If we're dealing with a collection which has no cached values,
                     // we must throw
-                    if ( !id && !data.rows.length && err ) {
+                    if ( !single && !data.length && err ) {
                         return $q.reject( err );
                     }
 
-                    return id ? data.doc : data.rows.map(function ( item ) {
-                        return item.doc;
-                    });
+                    return data;
                 }, maybeThrow );
             }
 
@@ -251,7 +246,7 @@
                         return $modelCache.set( self, data );
                     });
                 }, function ( err ) {
-                    return fetchCacheOrThrow( self, err );
+                    return fetchCacheOrThrow( self, false, err );
                 });
             };
 
@@ -278,7 +273,7 @@
                 return createRequest( self, "GET", null, options ).then(function ( data ) {
                     return $modelCache.set( self, data );
                 }, function ( err ) {
-                    return fetchCacheOrThrow( self, err );
+                    return fetchCacheOrThrow( self, true, err );
                 });
             };
 
@@ -368,7 +363,7 @@
 
                 return createRequest( self, "DELETE", null, options ).then(function ( data ) {
                     response = data;
-                    return fetchCacheOrThrow( self, null );
+                    return fetchCacheOrThrow( self, !!self.id(), null );
                 }).then(function ( cached ) {
                     return $modelCache.remove( self, cached );
                 }).then(function () {
@@ -457,16 +452,6 @@
             return url.replace( /\/\//g, function ( match, index ) {
                 return /https?:/.test( url.substr( 0, index ) ) ? match : "/";
             });
-        }
-
-        /**
-         * Map function for when listing docs offline.
-         * Emits them in the order they were fetched.
-         *
-         * @param   {Object} doc
-         */
-        function mapFn ( doc ) {
-            emit( doc.$order );
         }
     }
 }();

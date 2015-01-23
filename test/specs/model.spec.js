@@ -451,25 +451,25 @@ describe( "model", function () {
             return expect( promise ).to.eventually.have.property( "foo", data.foo );
         });
 
-        it( "should return cached value when receiving HTTP status 0", inject(function ( $q ) {
+        it( "should return cached value when receiving HTTP status 0", function () {
             var promise;
             var data = { foo: "bar" };
             var foobar = model( "foo" ).id( "bar" );
             var stub = sinon.stub( foobar.db, "get" ).withArgs( "bar" );
 
-            stub.returns( $q.when({
-                doc: data
-            }));
+            inject(function ( $q ) {
+                stub.returns( $q.when( data ) );
+            });
 
             $httpBackend.expectGET( "/foo/bar" ).respond( 0, null );
             promise = foobar.get();
 
-            testHelpers.flush();
+            testHelpers.flush( true );
             return promise.then(function ( value ) {
                 expect( stub ).to.have.been.called;
                 expect( value ).to.eql( data );
             });
-        }));
+        });
 
         it( "should not use cached value if error happens and not offline", function () {
             var promise;

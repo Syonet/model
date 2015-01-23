@@ -151,4 +151,48 @@ describe( "$modelCache", function () {
             });
         });
     });
+
+    // ---------------------------------------------------------------------------------------------
+
+    describe( ".getOne()", function () {
+        it( "should return cached document", function () {
+            var foobar = model( "foo" ).id( "bar" );
+            return cache.set( foobar, {
+                _id: "bar",
+                foo: "bar"
+            }).then( function () {
+                return expect( cache.getOne( foobar ) ).to.eventually.have.property( "foo", "bar" );
+            });
+        });
+
+        it( "should return cached document with same parents", function () {
+            var baz = model( "foo" ).id( "bar" ).model( "baz" );
+            return cache.set( baz, {
+                _id: "qux"
+            }).then( function () {
+                var promise = cache.getOne( baz );
+                return expect( promise ).to.eventually.have.property( "$parents" ).and.eql({
+                    foo: {
+                        $id: "bar",
+                        $parents: {}
+                    }
+                });
+            });
+        });
+    });
+
+    // ---------------------------------------------------------------------------------------------
+
+    describe( ".getAll()", function () {
+        it( "should return all cached documents", function () {
+            var foo = model( "foo" );
+            return cache.set( foo, [{
+                _id: "bar"
+            }, {
+                _id: "baz"
+            }]).then(function () {
+                return expect( cache.getAll( foo ) ).to.eventually.have.length( 2 );
+            });
+        });
+    });
 });

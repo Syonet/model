@@ -88,6 +88,46 @@
         }
 
         /**
+         * Get one document for a Model.
+         * If it's a collection, will try to match parents of each cached document.
+         *
+         * @param   {Model} model
+         * @returns {Promise}
+         */
+        function getOne ( model ) {
+            var id = model.id();
+            return id ? model.db.get( id ) : model.db.allDocs({
+                include_docs: true
+            }).then(function ( data ) {
+                var i, doc;
+                for ( i = 0; i < data.total_rows; i++ ) {
+                    doc = data.rows[ i ].doc;
+                    if ( checkRelations( doc, model ) ) {
+                        return doc;
+                    }
+                }
+
+                return $q.reject();
+            });
+        }
+
+        /**
+         * Get all documents for a Model.
+         *
+         * @param   {Model} model
+         * @returns {Promise}
+         */
+        function getAll ( model ) {
+            return model.db.query( mapFn, {
+                include_docs: true
+            }).then(function ( data ) {
+                return data.rows.map(function ( item ) {
+                    return item.doc;
+                });
+            });
+        }
+
+        /**
          * Extend the original data of each document passed.
          * If some item in the data array doesn't exist, then it'll be inserted.
          *
@@ -176,10 +216,40 @@
             }
         }
 
+        /**
+         * Check whether relations between an DB item and the Model are the same.
+         *
+         * @param   {Object} item
+         * @param   {Model} model
+         * @returns {boolean}
+         */
+        function checkRelations ( item, model ) {
+            while ( model = model._parent ) {
+                item = ( item.$parents || {} )[ model._path.name ];
+                if ( !item || item.$id !== model._path.id ) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        /**
+         * Map function for when listing docs offline.
+         * Emits them in the order they were fetched.
+         *
+         * @param   {Object} doc
+         */
+        function mapFn ( doc ) {
+            emit( doc.$order );
+        }
+
         return {
             remove: remove,
             set: set,
-            extend: extend
+            extend: extend,
+            getOne: getOne,
+            getAll: getAll
         };
     }
 }();
