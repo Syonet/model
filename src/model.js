@@ -243,7 +243,17 @@
                 }
 
                 return createRequest( self, "GET", query, options ).then(function ( data ) {
-                    return $modelCache.remove( self ).then(function () {
+                    var promise;
+
+                    if ( query ) {
+                        promise = $modelCache.getAll( self, query );
+                    } else {
+                        promise = $q.when();
+                    }
+
+                    return promise.then(function ( docs ) {
+                        return $modelCache.remove( self, docs );
+                    }).then(function () {
                         return $modelCache.set( self, data, query );
                     });
                 }, function ( err ) {
