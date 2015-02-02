@@ -141,7 +141,16 @@
             }).then(function ( data ) {
                 return data.rows.filter(function ( item ) {
                     var doc = item.doc;
-                    return query ? !!~doc.$queries.indexOf( query ) : true;
+                    var hasQueries = angular.isArray( doc.$queries );
+
+                    // Only test for query if a query has been passed
+                    if ( query  ) {
+                        // If this document doesn't have a $queries property or it's not an array,
+                        // then we'll ignore this document.
+                        return hasQueries ? !!~doc.$queries.indexOf( query ) : false;
+                    }
+
+                    return true;
                 }).map(function ( item ) {
                     return item.doc;
                 });
