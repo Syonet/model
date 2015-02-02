@@ -382,14 +382,42 @@ describe( "model", function () {
             return expect( promise ).to.be.rejected;
         });
 
-        it( "should reject if offline and no cached value is present", function () {
-            var promise;
+        describe( "when offline", function () {
+            it( "should reject when no cached value is present", function () {
+                var promise;
 
-            $httpBackend.expectGET( "/foo" ).respond( 0, null );
-            promise = model( "foo" ).list();
-            testHelpers.flush();
+                $httpBackend.expectGET( "/foo" ).respond( 0, null );
+                promise = model( "foo" ).list();
+                testHelpers.flush();
 
-            return expect( promise ).to.be.rejected;
+                return expect( promise ).to.be.rejected;
+            });
+
+            it( "should return only cached documents for the current query", function () {
+                var promise;
+                var foo = model( "foo" );
+                var data = [{
+                    id: "foo"
+                }];
+                var query = {
+                    bar: "baz"
+                };
+
+                $httpBackend.expectGET( "/foo?bar=baz" ).respond( data );
+                foo.list( query );
+                testHelpers.flush();
+
+                data[ 0 ].id = "bar";
+                $httpBackend.expectGET( "/foo" ).respond( data );
+                foo.list();
+                testHelpers.flush();
+
+                $httpBackend.expectGET( "/foo?bar=baz" ).respond( 0, null );
+                promise = model( "foo" ).list( query );
+                testHelpers.flush();
+
+                return expect( promise ).to.eventually.have.length( 1 );
+            });
         });
 
         // -----------------------------------------------------------------------------------------

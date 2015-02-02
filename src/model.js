@@ -74,10 +74,11 @@
              *
              * @param   {Model} model
              * @param   {Boolean} single
+             * @param   {Object} query
              * @param   {Error} err
              * @returns {Promise}
              */
-            function fetchCacheOrThrow ( model, single, err ) {
+            function fetchCacheOrThrow ( model, single, query, err ) {
                 var promise;
                 var offline = err && err.status === 0;
                 var maybeThrow = function () {
@@ -92,7 +93,7 @@
                     return maybeThrow();
                 }
 
-                promise = single ? $modelCache.getOne( model ) : $modelCache.getAll( model );
+                promise = single ? $modelCache.getOne( model ) : $modelCache.getAll( model, query );
                 return promise.then(function ( data ) {
                     // If we're dealing with a collection which has no cached values,
                     // we must throw
@@ -243,10 +244,10 @@
 
                 return createRequest( self, "GET", query, options ).then(function ( data ) {
                     return $modelCache.remove( self ).then(function () {
-                        return $modelCache.set( self, data );
+                        return $modelCache.set( self, data, query );
                     });
                 }, function ( err ) {
-                    return fetchCacheOrThrow( self, false, err );
+                    return fetchCacheOrThrow( self, false, query, err );
                 });
             };
 
@@ -273,7 +274,7 @@
                 return createRequest( self, "GET", null, options ).then(function ( data ) {
                     return $modelCache.set( self, data );
                 }, function ( err ) {
-                    return fetchCacheOrThrow( self, true, err );
+                    return fetchCacheOrThrow( self, true, null, err );
                 });
             };
 
@@ -363,7 +364,7 @@
 
                 return createRequest( self, "DELETE", null, options ).then(function ( data ) {
                     response = data;
-                    return fetchCacheOrThrow( self, !!self.id(), null );
+                    return fetchCacheOrThrow( self, !!self.id(), null, null );
                 }).then(function ( cached ) {
                     return $modelCache.remove( self, cached );
                 }).then(function () {
