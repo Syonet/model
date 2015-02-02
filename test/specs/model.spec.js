@@ -238,151 +238,153 @@ describe( "model", function () {
     // ---------------------------------------------------------------------------------------------
 
     describe( ".list()", function () {
-        it( "should do GET request and return", function () {
-            var promise;
-            var data = [{
-                id: "foo",
-                foo: "bar"
-            }];
+        describe( "when online", function () {
+            it( "should do GET request and return", function () {
+                var promise;
+                var data = [{
+                    id: "foo",
+                    foo: "bar"
+                }];
 
-            $httpBackend.expectGET( "/foo" ).respond( data );
+                $httpBackend.expectGET( "/foo" ).respond( data );
 
-            promise = model( "foo" ).list();
-            testHelpers.flush();
+                promise = model( "foo" ).list();
+                testHelpers.flush();
 
-            return expect( promise ).to.eventually.have.deep.property( "[0].foo", data.foo );
-        });
-
-        it( "should do GET request with parameters and return", function () {
-            var promise;
-            var data = [{
-                id: "foo",
-                foo: "bar"
-            }];
-
-            $httpBackend.expectGET( "/foo?bar=baz" ).respond( data );
-
-            promise = model( "foo" ).list({
-                bar: "baz"
+                return expect( promise ).to.eventually.have.deep.property( "[0].foo", data.foo );
             });
-            testHelpers.flush();
 
-            return expect( promise ).to.eventually.have.deep.property( "[0].foo", data.foo );
-        });
+            it( "should do GET request with parameters and return", function () {
+                var promise;
+                var data = [{
+                    id: "foo",
+                    foo: "bar"
+                }];
 
-        it( "should return cached array when receiving HTTP status 0", inject(function ( $q ) {
-            var promise;
-            var data = { foo: "bar" };
-            var foo = model( "foo" );
-            var stub = sinon.stub( foo.db, "query" ).withArgs( sinon.match.func, sinon.match({
-                include_docs: true
-            }));
+                $httpBackend.expectGET( "/foo?bar=baz" ).respond( data );
 
-            stub.returns( $q.when({
-                rows: [{
-                    doc: data
-                }]
-            }));
+                promise = model( "foo" ).list({
+                    bar: "baz"
+                });
+                testHelpers.flush();
 
-            $httpBackend.expectGET( "/foo" ).respond( 0, null );
-            promise = foo.list();
-
-            testHelpers.flush();
-            return promise.then(function ( value ) {
-                expect( stub ).to.have.been.called;
-                expect( value ).to.eql([ data ]);
+                return expect( promise ).to.eventually.have.deep.property( "[0].foo", data.foo );
             });
-        }));
 
-        it( "should return cached array in the original order", function () {
-            var promise;
-            var foo = model( "foo" );
-            var data = [{
-                id: 5,
-                foo: "bar"
-            }, {
-                id: 3,
-                foo: "baz"
-            }, {
-                id: 2,
-                foo: "qux"
-            }];
+            it( "should wipe previous cached values on another request", function () {
+                var promise;
+                var foo = model( "foo" );
+                var data = [{
+                    id: 5,
+                    foo: "bar"
+                }, {
+                    id: 3,
+                    foo: "baz"
+                }, {
+                    id: 2,
+                    foo: "qux"
+                }];
 
-            $httpBackend.expectGET( "/foo" ).respond( data );
-            foo.list();
-            testHelpers.flush();
-
-            $httpBackend.expectGET( "/foo" ).respond( 0, null );
-            promise = foo.list();
-            testHelpers.flush();
-
-            expect( promise ).to.eventually.have.deep.property( "[0].id", 5 );
-            expect( promise ).to.eventually.have.deep.property( "[1].id", 3 );
-            expect( promise ).to.eventually.have.deep.property( "[2].id", 2 );
-
-            return promise;
-        });
-
-        it( "should wipe previous cached values on another request", function () {
-            var promise;
-            var foo = model( "foo" );
-            var data = [{
-                id: 5,
-                foo: "bar"
-            }, {
-                id: 3,
-                foo: "baz"
-            }, {
-                id: 2,
-                foo: "qux"
-            }];
-
-            // First request carries all elements
-            $httpBackend.expectGET( "/foo" ).respond( data );
-            promise = foo.list();
-            testHelpers.flush();
-
-            return promise.then(function () {
-                // Second request removes one of them
-                $httpBackend.expectGET( "/foo" ).respond( data.slice( 1 ) );
+                // First request carries all elements
+                $httpBackend.expectGET( "/foo" ).respond( data );
                 promise = foo.list();
+                testHelpers.flush();
 
-                setTimeout( $httpBackend.flush );
-                return promise;
-            }).then(function () {
-                // Third request will fail, so the cache should be equal to the response of the
-                // second request
-                $httpBackend.expectGET( "/foo" ).respond( 0, null );
+                return promise.then(function () {
+                    // Second request removes one of them
+                    $httpBackend.expectGET( "/foo" ).respond( data.slice( 1 ) );
+                    promise = foo.list();
+
+                    setTimeout( $httpBackend.flush );
+                    return promise;
+                }).then(function () {
+                    // Third request will fail, so the cache should be equal to the response of the
+                    // second request
+                    $httpBackend.expectGET( "/foo" ).respond( 0, null );
+                    promise = foo.list();
+                    setTimeout( $httpBackend.flush );
+
+                    expect( promise ).to.eventually.have.deep.property( "[0].id", 3 );
+                    expect( promise ).to.eventually.have.deep.property( "[1].id", 2 );
+
+                    return promise;
+                });
+            });
+
+            it( "should not use cached value if error happens", function () {
+                var promise;
+                var foo = model( "foo" );
+                var data = [{
+                    id: "foo"
+                }];
+                $httpBackend.expectGET( "/foo" ).respond( data );
+                foo.list();
+                testHelpers.flush();
+
+                $httpBackend.expectGET( "/foo" ).respond( 500, {
+                    err: 1
+                });
                 promise = foo.list();
-                setTimeout( $httpBackend.flush );
+                testHelpers.flush();
 
-                expect( promise ).to.eventually.have.deep.property( "[0].id", 3 );
-                expect( promise ).to.eventually.have.deep.property( "[1].id", 2 );
-
-                return promise;
+                return expect( promise ).to.be.rejected;
             });
-        });
-
-        it( "should not use cached value if error happens and not offline", function () {
-            var promise;
-            var foo = model( "foo" );
-            var data = [{
-                id: "foo"
-            }];
-            $httpBackend.expectGET( "/foo" ).respond( data );
-            foo.list();
-            testHelpers.flush();
-
-            $httpBackend.expectGET( "/foo" ).respond( 500, {
-                err: 1
-            });
-            promise = foo.list();
-            testHelpers.flush();
-
-            return expect( promise ).to.be.rejected;
         });
 
         describe( "when offline", function () {
+            it( "should return cached array", inject(function ( $q ) {
+                var promise;
+                var data = { foo: "bar" };
+                var foo = model( "foo" );
+                var stub = sinon.stub( foo.db, "query" ).withArgs( sinon.match.func, sinon.match({
+                    include_docs: true
+                }));
+
+                stub.returns( $q.when({
+                    rows: [{
+                        doc: data
+                    }]
+                }));
+
+                $httpBackend.expectGET( "/foo" ).respond( 0, null );
+                promise = foo.list();
+
+                testHelpers.flush();
+                return promise.then(function ( value ) {
+                    expect( stub ).to.have.been.called;
+                    expect( value ).to.eql([ data ]);
+                });
+            }));
+
+            it( "should return cached array in the original order", function () {
+                var promise;
+                var foo = model( "foo" );
+                var data = [{
+                    id: 5,
+                    foo: "bar"
+                }, {
+                    id: 3,
+                    foo: "baz"
+                }, {
+                    id: 2,
+                    foo: "qux"
+                }];
+
+                $httpBackend.expectGET( "/foo" ).respond( data );
+                foo.list();
+                testHelpers.flush();
+
+                $httpBackend.expectGET( "/foo" ).respond( 0, null );
+                promise = foo.list();
+                testHelpers.flush();
+
+                expect( promise ).to.eventually.have.deep.property( "[0].id", 5 );
+                expect( promise ).to.eventually.have.deep.property( "[1].id", 3 );
+                expect( promise ).to.eventually.have.deep.property( "[2].id", 2 );
+
+                return promise;
+            });
+
             it( "should reject when no cached value is present", function () {
                 var promise;
 
