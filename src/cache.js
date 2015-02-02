@@ -59,13 +59,15 @@
          *
          * @param   {Model} model
          * @param   {Object|Object[]} data
+         * @param   {Object} [query]        What query returned this data
          * @returns {Promise}
          */
-        function set ( model, data ) {
+        function set ( model, data, query ) {
             var promises;
             var coll = !model.id();
             var arr = angular.isArray( data );
             data = arr ? data : [ data ];
+            query = query && queryToString( query );
 
             // Find the current revision of each item in the data array
             promises = data.map(function ( item ) {
@@ -77,6 +79,13 @@
                 data.forEach(function ( item, i ) {
                     removeSpecialKeys( item );
                     createRelations( item, model );
+
+                    // Add the current query to the list of queries that returned this data
+                    item.$queries = item.$queries || [];
+                    if ( query && !~item.$queries.indexOf( query ) ) {
+                        item.$queries.push( query );
+                    }
+
                     item.$order = i;
                     item._rev = revs[ i ];
                 });
@@ -115,13 +124,18 @@
          * Get all documents for a Model.
          *
          * @param   {Model} model
+         * @param   {Object} query
          * @returns {Promise}
          */
-        function getAll ( model ) {
+        function getAll ( model, query ) {
+            query = query && queryToString( query );
             return model.db.query( mapFn, {
                 include_docs: true
             }).then(function ( data ) {
-                return data.rows.map(function ( item ) {
+                return data.rows.filter(function ( item ) {
+                    var doc = item.doc;
+                    return query ? !!~doc.$queries.indexOf( query ) : true;
+                }).map(function ( item ) {
                     return item.doc;
                 });
             });
@@ -232,6 +246,22 @@
             }
 
             return true;
+        }
+
+        /**
+         * @param   {Object} query
+         * @returns {String}
+         */
+        function queryToString ( query ) {
+            var keys = Object.keys( query ).sort();
+            return keys.map(function ( key ) {
+                var val = query[ key ];
+                if ( val != null && typeof val === "object" ) {
+                    val = JSON.stringify( val );
+                }
+
+                return encodeURIComponent( key ) + "=" + encodeURIComponent( val );
+            }).join( "&" );
         }
 
         /**
