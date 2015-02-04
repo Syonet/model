@@ -85,6 +85,8 @@ model( "foo" ).id( "bar" ).get(); // GET /foo/bar
 ### `.save( data )`
 Save an element or collection and return a promise for it. Triggers a `POST` request and saves the result to the PouchDB cache.
 
+If the request fails with HTTP code `0`, then this request will be stored to be triggered when the user/server is back online.
+
 Example:
 
 ```javascript
@@ -108,6 +110,8 @@ model( "foo" ).save([{
 
 ### `.patch( data )`
 Patch an element or collection and return a promise for it. Triggers a `PATCH` request and saves the result to the PouchDB cache.
+
+If the request fails with HTTP code `0`, then this request will be stored to be triggered when the user/server is back online.
 
 Example:
 
@@ -133,6 +137,8 @@ model( "foo" ).patch([{
 ### `.remove()`
 Remove an element or collection and returns a promise for it. Triggers a `DELETE` request and wipes the
 corresponding elements from the PouchDB cache.
+
+If the request fails with HTTP code `0`, then this request will be stored to be triggered when the user/server is back online.
 
 Example:
 
