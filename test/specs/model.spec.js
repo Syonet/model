@@ -611,6 +611,57 @@ describe( "model", function () {
                 });
             });
         });
+
+        // -----------------------------------------------------------------------------------------
+
+        describe( "on a collection", function () {
+            it( "should require array of data", function () {
+                var fn = function () {
+                    return model( "foo" ).update({});
+                };
+
+                expect( fn ).to.throw();
+            });
+
+            it( "should require all items in array to have an ID", function () {
+                var fn = function () {
+                    model( "foo" ).update([{
+                        id: "foo"
+                    }, {
+                        foo: "bar"
+                    }]);
+                };
+
+                expect( fn ).to.throw();
+            });
+
+            it( "should allow modifying ID fields via id option", function () {
+                var promise;
+                var foo = model( "foo" );
+
+                // Use status 0, so we're allowed to not give a **ck about the HTTP response :)
+                $httpBackend.expectPOST( "/foo" ).respond( 0 );
+                promise = foo.update( [{
+                    foo: "foo",
+                    bar: "bar"
+                }, {
+                    foo: "foo1",
+                    bar: "bar1"
+                }], {
+                    id: [ "foo", "bar" ]
+                });
+
+                testHelpers.flush();
+                return promise.then(function () {
+                    promise = [];
+                    promise.push( foo.db.get( "foo,bar" ) );
+                    promise.push( foo.db.get( "foo1,bar1" ) );
+                    promise = injector.get( "$q" ).all( promise );
+
+                    return promise;
+                });
+            });
+        });
     });
 
     // ---------------------------------------------------------------------------------------------
@@ -655,6 +706,57 @@ describe( "model", function () {
                             "baz",
                             "qux"
                         );
+                    });
+                });
+            });
+
+            // -------------------------------------------------------------------------------------
+
+            describe( "on a collection", function () {
+                it( "should require array of data", function () {
+                    var fn = function () {
+                        return model( "foo" ).patch({});
+                    };
+
+                    expect( fn ).to.throw();
+                });
+
+                it( "should require all items in array to have an ID", function () {
+                    var fn = function () {
+                        model( "foo" ).patch([{
+                            id: "foo"
+                        }, {
+                            foo: "bar"
+                        }]);
+                    };
+
+                    expect( fn ).to.throw();
+                });
+
+                it( "should allow modifying ID fields via id option", function () {
+                    var promise;
+                    var foo = model( "foo" );
+
+                    // Use status 0, so we're allowed to not give a **ck about the HTTP response :)
+                    $httpBackend.expectPATCH( "/foo" ).respond( 0 );
+                    promise = foo.patch([{
+                        foo: "foo",
+                        bar: "bar"
+                    }, {
+                        foo: "foo1",
+                        bar: "bar1"
+                    }], {
+                        id: [ "foo", "bar" ]
+                    });
+
+                    testHelpers.flush();
+                    return promise.then(function () {
+                        promise = [];
+                        promise.push( foo.db.get( "foo,bar" ) );
+                        promise.push( foo.db.get( "foo1,bar1" ) );
+                        promise = injector.get( "$q" ).all( promise );
+
+                        return promise;
                     });
                 });
             });
