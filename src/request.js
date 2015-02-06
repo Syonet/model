@@ -138,7 +138,6 @@
              */
             function createRequest ( url, method, data, options ) {
                 var pingUrl, config, httpPromise;
-                var deferred = $q.defer();
                 var safe = createRequest.isSafe( method );
 
                 // Ensure options is an object
@@ -157,7 +156,7 @@
                 };
 
                 // FIXME This functionality has not been tested yet.
-                config.headers.__modelXHR__ = createXhrNotifier( deferred );
+                // config.headers.__modelXHR__ = createXhrNotifier( deferred );
 
                 putAuthorizationHeader( config, options.auth );
                 httpPromise = $http( config ).then( null, function ( response ) {
@@ -167,8 +166,7 @@
                     });
                 });
 
-                deferred.resolve( httpPromise );
-                return deferred.promise;
+                return makeEmitter( httpPromise );
             }
 
             /**
@@ -183,6 +181,31 @@
 
             // Finally return our super powerful function!
             return createRequest;
+
+            function makeEmitter ( obj, origin ) {
+                var then = obj.then;
+                obj.then = function () {
+                    return makeEmitter( then.apply( this, arguments ), obj );
+                };
+
+                obj.$$events = origin && origin.$$events || {};
+                obj.on = function ( name, listener ) {
+                    var store = obj.$$events[ name ] = obj.$$events[ name ] || [];
+                    store.push( listener );
+                    return obj;
+                };
+
+                obj.emit = function ( name ) {
+                    var events = obj.$$events[ name ] || [];
+                    events.forEach(function ( listener ) {
+                        listener();
+                    });
+
+                    return obj;
+                };
+
+                return obj;
+            }
         };
 
         return provider;
