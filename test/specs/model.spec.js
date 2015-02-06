@@ -404,55 +404,71 @@ describe( "model", function () {
 
         // -----------------------------------------------------------------------------------------
 
-        it( "should do GET request and return response", function () {
-            var promise;
-            var data = { foo: "bar" };
+        describe( "when online", function () {
+            it( "should do GET request and return response", function () {
+                var promise;
+                var data = { foo: "bar" };
 
-            $httpBackend.expectGET( "/foo/bar" ).respond( data );
+                $httpBackend.expectGET( "/foo/bar" ).respond( data );
 
-            promise = model( "foo" ).get( "bar" );
-            testHelpers.flush();
+                promise = model( "foo" ).get( "bar" );
+                testHelpers.flush();
 
-            return expect( promise ).to.eventually.have.property( "foo", data.foo );
+                return expect( promise ).to.eventually.have.property( "foo", data.foo );
+            });
+
+            it( "should not use cached value if error happens and not offline", function () {
+                var promise;
+                var foobar = model( "foo" ).id( "bar" );
+                var data = {
+                    foo: "bar"
+                };
+                $httpBackend.expectGET( "/foo/bar" ).respond( data );
+                foobar.get();
+                testHelpers.flush();
+
+                $httpBackend.expectGET( "/foo/bar" ).respond( 500, {
+                    err: 1
+                });
+                promise = foobar.get();
+                testHelpers.flush();
+
+                return expect( promise ).to.be.rejected;
+            });
         });
 
-        it( "should return cached value when receiving HTTP status 0", function () {
-            var promise;
-            var data = { foo: "bar" };
-            var foobar = model( "foo" ).id( "bar" );
-            var stub = sinon.stub( foobar.db, "get" ).withArgs( "bar" );
+        // -----------------------------------------------------------------------------------------
 
-            inject(function ( $q ) {
-                stub.returns( $q.when( data ) );
+        describe( "when offline", function () {
+            it( "should return cached value when it exists", function () {
+                var promise;
+                var data = { foo: "bar" };
+                var foobar = model( "foo" ).id( "bar" );
+                var stub = sinon.stub( foobar.db, "get" ).withArgs( "bar" );
+
+                inject(function ( $q ) {
+                    stub.returns( $q.when( data ) );
+                });
+
+                $httpBackend.expectGET( "/foo/bar" ).respond( 0, null );
+                promise = foobar.get();
+
+                testHelpers.flush( true );
+                return promise.then(function ( value ) {
+                    expect( stub ).to.have.been.called;
+                    expect( value ).to.eql( data );
+                });
             });
 
-            $httpBackend.expectGET( "/foo/bar" ).respond( 0, null );
-            promise = foobar.get();
+            it( "should reject if no cache is available", function () {
+                var promise;
 
-            testHelpers.flush( true );
-            return promise.then(function ( value ) {
-                expect( stub ).to.have.been.called;
-                expect( value ).to.eql( data );
+                $httpBackend.expectGET( "/foo/bar" ).respond( 0, null );
+                promise = model( "foo" ).id( "bar" ).get();
+
+                testHelpers.flush( true );
+                return expect( promise ).to.be.rejected;
             });
-        });
-
-        it( "should not use cached value if error happens and not offline", function () {
-            var promise;
-            var foobar = model( "foo" ).id( "bar" );
-            var data = {
-                foo: "bar"
-            };
-            $httpBackend.expectGET( "/foo/bar" ).respond( data );
-            foobar.get();
-            testHelpers.flush();
-
-            $httpBackend.expectGET( "/foo/bar" ).respond( 500, {
-                err: 1
-            });
-            promise = foobar.get();
-            testHelpers.flush();
-
-            return expect( promise ).to.be.rejected;
         });
     });
 
