@@ -190,5 +190,28 @@ model( "foo" ).remove(); // => DELETE /foo
 model( "foo" ).id( "bar" ).remove(); // => DELETE /foo/bar
 ```
 
+### model.base( [base] )
+Get or set the base URL for the HTTP requests.
+
+```javascript
+model.base( "/api" );
+model( "foo" ).list(); // GET /api/foo
+
+model.base(); // /api
+```
+
+__Attention:__ When setting a new value, __existing cached data will be removed!__.
+
+### model.auth( [username], [password] )
+Get or set Basic authentication for HTTP requests. If `username` is not defined, then the existing
+auth data will be returned.
+
+```javascript
+model.auth( "foo", "bar" );
+model( "foo" ).list(); // GET /foo with header Authorization: Basic <...>
+
+model.auth(); // { username: "foo", password: "bar" }
+```
+
 ## License
 MIT
