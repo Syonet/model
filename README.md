@@ -104,7 +104,7 @@ model( "foo" ).id( "bar" ).get(); // GET /foo/bar
 Create one or more elements return a promise for it. Triggers a `POST` request and saves the result to the PouchDB cache.
 If this method is invoked in an element, then passing the `collection` argument is mandatory.
 
-If the request fails with HTTP code `0`, then this request will be stored to be triggered when the user/server is back online.
+If the HTTP request fails with code `0`, then the elements passed will be created an assigned an temporary ID.
 
 Example:
 
@@ -128,6 +128,8 @@ model( "foo" ).create([{
 ### `.update( data )`
 Update one or more elements and return a promise for it. Triggers a `POST` request and saves the result to the PouchDB cache.
 If this method is invoked in an collection, then it's mandatory to make a batch operation, using `data` as an array.
+
+If the HTTP request fails with code `0`, then the cached data will be replaced with the elements passed.
 
 Example:
 
@@ -154,7 +156,7 @@ model( "foo" ).update([{
 Patch one or more elements and return a promise for it. Triggers a `PATCH` request and saves the result to the PouchDB cache.
 If this method is invoked in an collection, then it's mandatory to make a batch operation, using `data` as an array.
 
-If the request fails with HTTP code `0`, then this request will be stored to be triggered when the user/server is back online.
+If the HTTP request fails with code `0`, then the cached data will be extended with the elements passed.
 
 Example:
 
@@ -180,8 +182,6 @@ model( "foo" ).patch([{
 ### `.remove()`
 Remove an element or collection and returns a promise for it. Triggers a `DELETE` request and wipes the
 corresponding elements from the PouchDB cache.
-
-If the request fails with HTTP code `0`, then this request will be stored to be triggered when the user/server is back online.
 
 Example:
 
