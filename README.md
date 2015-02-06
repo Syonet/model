@@ -104,6 +104,8 @@ model( "foo" ).id( "bar" ).get(); // GET /foo/bar
 Create one or more elements return a promise for it. Triggers a `POST` request and saves the result to the PouchDB cache.
 If this method is invoked in an element, then passing the `collection` argument is mandatory.
 
+If the HTTP request fails with code `0`, then the elements passed will be created an assigned an temporary ID.
+
 Example:
 
 ```javascript
@@ -126,6 +128,8 @@ model( "foo" ).create([{
 ### `.update( data )`
 Update one or more elements and return a promise for it. Triggers a `POST` request and saves the result to the PouchDB cache.
 If this method is invoked in an collection, then it's mandatory to make a batch operation, using `data` as an array.
+
+If the HTTP request fails with code `0`, then the cached data will be replaced with the elements passed.
 
 Example:
 
@@ -151,6 +155,8 @@ model( "foo" ).update([{
 ### `.patch( data )`
 Patch one or more elements and return a promise for it. Triggers a `PATCH` request and saves the result to the PouchDB cache.
 If this method is invoked in an collection, then it's mandatory to make a batch operation, using `data` as an array.
+
+If the HTTP request fails with code `0`, then the cached data will be extended with the elements passed.
 
 Example:
 
