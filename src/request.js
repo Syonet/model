@@ -29,7 +29,7 @@
          */
         provider.altContentLengthHeader = "X-Content-Length";
 
-        provider.$get = function ( $timeout, $q, $http, $window ) {
+        provider.$get = function ( $timeout, $q, $http, $window, $modelEventEmitter ) {
             var currPing;
 
             /**
@@ -166,7 +166,7 @@
                     });
                 });
 
-                return makeEmitter( httpPromise );
+                return $modelEventEmitter( httpPromise );
             }
 
             /**
@@ -181,31 +181,6 @@
 
             // Finally return our super powerful function!
             return createRequest;
-
-            function makeEmitter ( obj, origin ) {
-                var then = obj.then;
-                obj.then = function () {
-                    return makeEmitter( then.apply( this, arguments ), obj );
-                };
-
-                obj.$$events = origin && origin.$$events || {};
-                obj.on = function ( name, listener ) {
-                    var store = obj.$$events[ name ] = obj.$$events[ name ] || [];
-                    store.push( listener );
-                    return obj;
-                };
-
-                obj.emit = function ( name ) {
-                    var events = obj.$$events[ name ] || [];
-                    events.forEach(function ( listener ) {
-                        listener();
-                    });
-
-                    return obj;
-                };
-
-                return obj;
-            }
         };
 
         return provider;

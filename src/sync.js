@@ -6,7 +6,14 @@
     function modelSyncProvider ( $modelRequestProvider ) {
         var provider = this;
 
-        provider.$get = function ( $q, $interval, $document, $modelRequest, $modelDB ) {
+        provider.$get = function (
+            $q,
+            $interval,
+            $document,
+            $modelRequest,
+            $modelDB,
+            $modelEventEmitter
+        ) {
             var UPDATE_DB_NAME = "__updates";
             var db = $modelDB( UPDATE_DB_NAME );
 
@@ -79,7 +86,7 @@
                 }
             }
 
-            sync.$$events = {};
+            sync = $modelEventEmitter( sync );
 
             /**
              * Store a combination of model/method/data.
@@ -96,33 +103,6 @@
                     method: method,
                     data: data,
                     options: options
-                });
-            };
-
-            /**
-             * Add a event to the synchronization object
-             *
-             * @param   {String} event
-             * @param   {Function} listener
-             * @returns void
-             */
-            sync.on = function ( event, listener ) {
-                sync.$$events[ event ] = sync.$$events[ event ] || [];
-                sync.$$events[ event ].push( listener );
-            };
-
-            /**
-             * Emit a event in the synchronization object
-             *
-             * @param   {String} event
-             * @returns void
-             */
-            sync.emit = function ( event ) {
-                var args = [].slice.call( arguments, 1 );
-                var listeners = sync.$$events[ event ] || [];
-
-                listeners.forEach(function ( listener ) {
-                    listener.apply( null, args );
                 });
             };
 
