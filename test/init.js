@@ -24,7 +24,7 @@ function testHelpers ( $injector ) {
     };
 
     testHelpers.digest = function ( timeout ) {
-        timeout ? setTimeout( $rootScope.$apply ) : $rootScope.$apply();
+        timeout ? setTimeout( $rootScope.$digest ) : $rootScope.$digest();
     };
 
     testHelpers.flush = function ( timeout ) {
