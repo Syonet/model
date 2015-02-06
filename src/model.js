@@ -428,7 +428,7 @@
                             // This is because only the index 0 is useful when there's only one ID
                             // key. If there's no ID key defined, then this is also useful as a
                             // catch method, so no empty ID is passed along.
-                            item._id = item._id.length <= 1 ? item._id[ 0 ] : item._id;
+                            item._id = item._id.length <= 1 ? item._id[ 0 ] : item._id.join( "," );
 
                             if ( !item._id ) {
                                 throw new Error(
