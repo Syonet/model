@@ -33,6 +33,24 @@ angular.module( "app" ).controller( "MyController", function ( model ) {
 });
 ```
 
+## Promises + Event Emitter
+Every method in the `model` service that performs an HTTP request will return a promise which is
+also an event emitter. This means those promises will borrow the following API:
+
+### `.on( event, listener )`
+Add a listener `listener` for `event` event.
+
+### `.emit( event, args... )`
+Emit `event` using the provided list of `args`.
+
+Also, when you invoke `.then()` in this promise, it'll keep the event emitter interface with the
+same listeners from the original promise.
+
+All these methods will emit the following events:
+
+* `cache` - when the cache is hit. Normally, the only argument passed is the cached value.
+* `server` - when the server response is received. Normally, the only argument passed is the received value.
+
 ## `model` service API
 ### `[new] model( name )`
 Returns a new Model instance for the `name` collection.
@@ -60,7 +78,7 @@ Lists all elements from a collection, and reutrns a promise for it. Triggers a `
 If this method is invoked in an element, then passing the `collection` argument is mandatory.  
 The `query` argument is passed as query string parameters for the request.
 
-If the request fails with HTTP code `0`, then the cached collection is returned in their previous order.
+If the request fails with HTTP code `0`, then the promise is resolved with the cached value.
 
 Example:
 
