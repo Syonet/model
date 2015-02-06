@@ -70,42 +70,6 @@
             }
 
             /**
-             * Fetches a PouchDB cached value (if there's no connection) or throws an error.
-             *
-             * @param   {Model} model
-             * @param   {Boolean} single
-             * @param   {Object} query
-             * @param   {Error} err
-             * @returns {Promise}
-             */
-            function fetchCacheOrThrow ( model, single, query, err ) {
-                var promise;
-                var offline = err && err.status === 0;
-                var maybeThrow = function () {
-                    return $q(function ( resolve, reject ) {
-                        // Don't throw if a error is not available
-                        err ? reject( err ) : resolve( null );
-                    });
-                };
-
-                // Don't try to use a cached value coming from PouchDB if a connection is available
-                if ( !offline && err != null ) {
-                    return maybeThrow();
-                }
-
-                promise = single ? $modelCache.getOne( model ) : $modelCache.getAll( model, query );
-                return promise.then(function ( data ) {
-                    // If we're dealing with a collection which has no cached values,
-                    // we must throw
-                    if ( !single && !data.length && err ) {
-                        return $q.reject( err );
-                    }
-
-                    return data;
-                }, maybeThrow );
-            }
-
-            /**
              * @param   {String} name
              * @returns {Model}
              * @constructor
@@ -225,7 +189,7 @@
              * @returns {Promise}
              */
             Model.prototype.list = function ( collection, query, options ) {
-                var msg;
+                var promise, msg;
                 var self = this;
 
                 if ( this.id() ) {
@@ -242,22 +206,24 @@
                     query = collection;
                 }
 
-                return createRequest( self, "GET", query, options ).then(function ( data ) {
-                    var promise;
+                promise = createRequest( self, "GET", query, options );
+                promise.$$cached = $modelCache.getAll( self ).then(function ( docs ) {
+                    promise.emit( "cache", docs );
+                    return docs;
+                });
 
-                    if ( query ) {
-                        promise = $modelCache.getAll( self, query );
-                    } else {
-                        promise = $q.when();
-                    }
+                return promise.then(function ( docs ) {
+                    promise.emit( "server", docs );
 
-                    return promise.then(function ( docs ) {
-                        return $modelCache.remove( self, docs );
-                    }).then(function () {
-                        return $modelCache.set( self, data, query );
+                    return $modelCache.remove( self ).then(function () {
+                        return $modelCache.set( self, docs );
                     });
                 }, function ( err ) {
-                    return fetchCacheOrThrow( self, false, query, err );
+                    if ( err.status === 0 ) {
+                        return promise.$$cached;
+                    }
+
+                    return $q.reject( err );
                 });
             };
 
@@ -273,6 +239,7 @@
              * @returns {Promise}
              */
             Model.prototype.get = function ( id, options ) {
+                var promise;
                 var self = this;
 
                 if ( !this.id() ) {
@@ -281,85 +248,91 @@
                     options = id;
                 }
 
-                return createRequest( self, "GET", null, options ).then(function ( data ) {
-                    return $modelCache.set( self, data );
+                promise = createRequest( self, "GET", null, options );
+                promise.$$cached = $modelCache.getOne( self ).then(function ( doc ) {
+                    promise.emit( "cache", doc );
+                    return doc;
+                });
+
+                return promise.then(function ( doc ) {
+                    promise.emit( "server", doc );
+                    return $modelCache.set( self, doc );
                 }, function ( err ) {
-                    return fetchCacheOrThrow( self, true, null, err );
+                    if ( err.status === 0 ) {
+                        return promise.$$cached.then( null, function ( e ) {
+                            return $q.reject( e.name === "not_found" ? err : e );
+                        });
+                    }
+
+                    return $q.reject( err );
                 });
             };
 
             /**
-             * Save the current collection/element.
+             * Create one or more elements into the current collection or into
+             * <code>collection</code>.
              * Triggers a POST request.
              *
-             * @param   {*} data            The data to save
-             * @param   {Object} options
+             * @param   {String} [collection]   A subcollection to create the elements on.
+             * @param   {*} data                The data to save
+             * @param   {Object} [options]
              * @returns {Promise}
              */
-            Model.prototype.save = function ( data, options ) {
+            Model.prototype.create = function ( collection, data, options ) {
+                var promise, msg;
                 var self = this;
-                return createRequest( self, "POST", data, options ).then(function ( docs ) {
-                    var id = self.id();
-                    var offline = docs === SKIP_RESPONSE;
 
-                    if ( offline ) {
-                        // When offline on collections, we'll do nothing
-                        if ( !id ) {
-                            return null;
-                        }
+                if ( this.id() ) {
+                    if ( collection ) {
+                        self = this.model( collection );
+                    } else {
+                        msg =
+                            "Can't invoke .create() in a element without specifying " +
+                            "child collection name.";
+                        throw new Error( msg );
+                    }
+                } else {
+                    options = data;
+                    data = collection;
+                }
 
-                        // Otherwise, set the PouchDB's _id, so we can cache and retrieve this
-                        // entity later
-                        data._id = data._id || id;
-                        docs = data;
+                promise = createRequest( self, "POST", data, options );
+                promise.$$cached = $modelCache.set( self, data ).then(function ( docs ) {
+                    promise.emit( "cache", docs );
+                    return docs;
+                });
+
+                return promise.then(function ( docs ) {
+                    if ( docs === SKIP_RESPONSE ) {
+                        return promise.$$cached;
                     }
 
-                    // We'll only update the cache if it's a single document
-                    if ( id || !angular.isArray( data ) ) {
+                    promise.emit( "server", docs );
+                    return $modelCache.remove( self, data ).then(function () {
                         return $modelCache.set( self, docs );
-                    }
-
-                    // If it's a batch POST, then we'll only remove the data and return what
-                    // has been posted.
-                    return $modelCache.remove( self ).then(function () {
-                        return docs;
                     });
                 });
             };
 
             /**
-             * Patches the current collection/element.
-             * Triggers a PATCH request.
+             * Updates the current collection/element.
+             * Triggers a POST request.
              *
-             * @param   {*} [data]
-             * @param   {Object} options
+             * @param   {Object|Object[]} data
+             * @param   {Object} [options]
              * @returns {Promise}
              */
-            Model.prototype.patch = function ( data, options ) {
-                var self = this;
-                return createRequest( this, "PATCH", data, options ).then(function ( docs ) {
-                    var id = self.id();
+            Model.prototype.update = createUpdateFn( "set", "POST" );
 
-                    if ( docs === SKIP_RESPONSE ) {
-                        // Can't update cache for what we don't know what the ID is
-                        // That's the case of batch patches on collections
-                        if ( !id ) {
-                            return null;
-                        }
-
-                        data._id = id;
-                        return $modelCache.extend( self, data );
-                    }
-
-                    if ( id ) {
-                        return $modelCache.set( self, docs );
-                    }
-
-                    return $modelCache.remove( self ).then(function () {
-                        return docs;
-                    });
-                });
-            };
+            /**
+             * Updates the current collection/element.
+             * Triggers a PATCH request.
+             *
+             * @param   {Object|Object[]} data
+             * @param   {Object} [options]
+             * @returns {Promise}
+             */
+            Model.prototype.patch = createUpdateFn( "extend", "PATCH" );
 
             /**
              * Removes the current collection/element.
@@ -369,16 +342,24 @@
              * @returns {Promise}
              */
             Model.prototype.remove = function ( options ) {
-                var response;
                 var self = this;
+                var promise = createRequest( self, "DELETE", null, options );
 
-                return createRequest( self, "DELETE", null, options ).then(function ( data ) {
-                    response = data;
-                    return fetchCacheOrThrow( self, !!self.id(), null, null );
-                }).then(function ( cached ) {
-                    return $modelCache.remove( self, cached );
-                }).then(function () {
-                    return response === SKIP_RESPONSE ? null : response;
+                // Find the needed docs and remove then from cache right away
+                promise.$$cached = $modelCache[ self.id() ? "getOne" : "getAll" ]( self );
+                promise.$$cached = promise.$$cached.then(function ( data ) {
+                    return $modelCache.remove( self, data ).then(function () {
+                        promise.emit( "cached" );
+                        return null;
+                    });
+                });
+
+                return promise.then(function ( response ) {
+                    if ( response === SKIP_RESPONSE ) {
+                        promise.emit( "server" );
+                    }
+
+                    return promise.$$cached;
                 });
             };
 
@@ -414,6 +395,75 @@
             Model.base( Model.base() || "/" );
 
             return Model;
+
+            // -------------------------------------------------------------------------------------
+
+            /**
+             * Create and return a request function suitable for update/patch offline logic.
+             *
+             * @param   {String} cacheFn    The cache function to use. One of extend or set.
+             * @param   {String} method     The HTTP method to use. One of POST or PATCH.
+             * @returns {Function}
+             */
+            function createUpdateFn ( cacheFn, method ) {
+                return function ( data, options  ) {
+                    var promise;
+                    var self = this;
+
+                    options = angular.extend( {}, options );
+                    options.id = options.id || "id";
+
+                    if ( !self.id() ) {
+                        if ( !angular.isArray( data ) ) {
+                            throw new Error( "Can only do batch operations on arrays" );
+                        }
+
+                        data.forEach(function ( item ) {
+                            item._id = Object.keys( item ).filter( filterKeys );
+                            item._id = item._id.map(function ( key ) {
+                                return item[ key ];
+                            });
+
+                            // Checks for length <= 1 and use index 0 if so.
+                            // This is because only the index 0 is useful when there's only one ID
+                            // key. If there's no ID key defined, then this is also useful as a
+                            // catch method, so no empty ID is passed along.
+                            item._id = item._id.length <= 1 ? item._id[ 0 ] : item._id;
+
+                            if ( !item._id ) {
+                                throw new Error(
+                                    "Can't do batch operation without ID defined on all items"
+                                );
+                            }
+                        });
+                    } else {
+                        data._id = self.id();
+                    }
+
+                    promise = createRequest( self, method, data, options );
+                    promise.$$cached = $modelCache[ cacheFn ]( self, data ).then(function ( docs ) {
+                        promise.emit( "cache", docs );
+                        return docs;
+                    });
+
+                    return promise.then(function ( docs ) {
+                        if ( docs === SKIP_RESPONSE ) {
+                            return promise.$$cached;
+                        }
+
+                        promise.emit( "server", docs );
+
+                        // Overwrite previously updated cache with the response from the server
+                        return $modelCache.set( self, docs );
+                    });
+
+                    // Helper function for filtering out keys that are not part of the ID of this
+                    // request.
+                    function filterKeys ( key ) {
+                        return !!~options.id.indexOf( key );
+                    }
+                };
+            }
         };
 
         return provider;
