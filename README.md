@@ -100,22 +100,46 @@ model( "foo" ).get( "bar" ); // GET /foo/bar
 model( "foo" ).id( "bar" ).get(); // GET /foo/bar
 ```
 
-### `.save( data )`
-Save an element or collection and return a promise for it. Triggers a `POST` request and saves the result to the PouchDB cache.
+### `.create( [collection], data )`
+Create one or more elements return a promise for it. Triggers a `POST` request and saves the result to the PouchDB cache.
+If this method is invoked in an element, then passing the `collection` argument is mandatory.
 
 If the request fails with HTTP code `0`, then this request will be stored to be triggered when the user/server is back online.
 
 Example:
 
 ```javascript
-model( "foo" ).id( "bar" ).save({
+model( "foo" ).id( "bar" ).create( "baz" {
+    foo: "bar"
+});
+// POST /foo/bar/baz
+// { foo: "bar" }
+
+// Batch create
+model( "foo" ).create([{
+    foo: "bar"
+}, {
+    foo: "baz"
+]);
+// POST /foo
+// [...]
+```
+
+### `.update( data )`
+Update one or more elements and return a promise for it. Triggers a `POST` request and saves the result to the PouchDB cache.
+If this method is invoked in an collection, then it's mandatory to make a batch operation, using `data` as an array.
+
+Example:
+
+```javascript
+model( "foo" ).id( "bar" ).update({
     foo: "bar"
 });
 // POST /foo/bar
 // { foo: "bar" }
 
-// Batch save
-model( "foo" ).save([{
+// Batch patch
+model( "foo" ).update([{
     id: 1,
     foo: "bar"
 }, {
@@ -127,7 +151,8 @@ model( "foo" ).save([{
 ```
 
 ### `.patch( data )`
-Patch an element or collection and return a promise for it. Triggers a `PATCH` request and saves the result to the PouchDB cache.
+Patch one or more elements and return a promise for it. Triggers a `PATCH` request and saves the result to the PouchDB cache.
+If this method is invoked in an collection, then it's mandatory to make a batch operation, using `data` as an array.
 
 If the request fails with HTTP code `0`, then this request will be stored to be triggered when the user/server is back online.
 
@@ -140,7 +165,7 @@ model( "foo" ).id( "bar" ).patch({
 // PATCH /foo/bar
 // { foo: "bar" }
 
-// Batch save
+// Batch patch
 model( "foo" ).patch([{
     id: 1,
     foo: "bar"
