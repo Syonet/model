@@ -29,52 +29,52 @@
                 return db.allDocs({
                     include_docs: true
                 }).then(function ( docs ) {
-                    var promises = [];
+                    return processRequest( docs.rows );
+                }).then(function () {
+                    // Don't emit if there were no sent requests
+                    if ( sentReqs.length ) {
+                        sync.emit( "success" );
+                    }
+                }).finally( clear );
 
-                    docs.rows.forEach(function ( row ) {
-                        var doc = row.doc;
+                function processRequest ( rows ) {
+                    var doc;
+                    var row = rows.shift();
 
-                        // Reconstitute model and try to send the request again
-                        var promise = $modelRequest(
-                            doc.model,
-                            doc.method,
-                            doc.data,
-                            doc.options
-                        ).then(function ( response ) {
+                    if ( !row ) {
+                        return $q.when();
+                    }
+
+                    doc = row.doc;
+
+                    // Reconstitute model and try to send the request again
+                    return $modelRequest(
+                        doc.model,
+                        doc.method,
+                        doc.data,
+                        doc.options
+                    ).then(function ( response ) {
+                        sentReqs.push({
+                            _id: row.id,
+                            _rev: row.value.rev
+                        });
+
+                        sync.emit( "response", response, doc );
+                        return processRequest( rows );
+                    }, function ( err ) {
+                        // We'll only remove requests which failed in the server.
+                        // Aborted/timed out requests will stay in our cache.
+                        if ( err.status !== 0 ) {
                             sentReqs.push({
                                 _id: row.id,
                                 _rev: row.value.rev
                             });
-                            return response;
-                        }, function ( err ) {
-                            // We'll only remove requests which failed in the server.
-                            // Aborted/timed out requests will stay in our cache.
-                            if ( err.status !== 0 ) {
-                                sentReqs.push({
-                                    _id: row.id,
-                                    _rev: row.value.rev
-                                });
-                            }
+                        }
 
-                            return $q.reject( err );
-                        });
-                        promises.push( promise );
+                        sync.emit( "error", err, row );
+                        return $q.reject( err );
                     });
-
-                    return $q.all( promises );
-                }).then(function ( values ) {
-                    // Don't emit if there were no resolved values
-                    if ( values.length ) {
-                        sync.emit( "success" );
-                    }
-
-                    return clear();
-                }, function ( err ) {
-                    // Pass the error to the callbacks whatever it is
-                    sync.emit( "error", err );
-
-                    return clear();
-                });
+                }
 
                 function clear () {
                     sync.$$running = false;
