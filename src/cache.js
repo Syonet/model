@@ -71,7 +71,7 @@
             // Find the current revision of each item in the data array
             promises = data.map(function ( item ) {
                 // Generate a temporary ID if doesn't have one
-                item._id = item._id || "$$temp" + $modelTemp.next();
+                item._id = item._id || $modelTemp.next();
 
                 item = arr || coll ? model.id( item._id ) : model;
                 return item.rev();

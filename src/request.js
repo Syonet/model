@@ -35,7 +35,7 @@
          */
         provider.idFieldHeader = "X-Id-Field";
 
-        provider.$get = function ( $timeout, $q, $http, $window, $modelEventEmitter ) {
+        provider.$get = function ( $timeout, $q, $http, $window, $modelEventEmitter, $modelTemp ) {
             var currPing;
 
             /**
@@ -143,7 +143,7 @@
              * @returns {Promise}
              */
             function createRequest ( url, method, data, options ) {
-                var pingUrl, config, httpPromise;
+                var pingUrl, config, promise;
                 var safe = createRequest.isSafe( method );
 
                 // Ensure options is an object
@@ -165,14 +165,27 @@
                 // config.headers.__modelXHR__ = createXhrNotifier( deferred );
 
                 putAuthorizationHeader( config, options.auth );
-                httpPromise = $http( config ).then( applyIdField, function ( response ) {
-                    return $q.reject({
-                        data: response.data,
-                        status: response.status
+                promise = updateTempRefs( config ).then(function ( config ) {
+                    return $http( config ).then(function ( response ) {
+                        var promise;
+                        response = applyIdField( response );
+                        promise = $q.when( response );
+
+                        // Set an persisted ID to the temporary ID posted
+                        if ( data && $modelTemp.is( data._id ) ) {
+                            promise = $modelTemp.set( data._id, response._id ).then( promise );
+                        }
+
+                        return promise;
+                    }, function ( response ) {
+                        return $q.reject({
+                            data: response.data,
+                            status: response.status
+                        });
                     });
                 });
 
-                return $modelEventEmitter( httpPromise );
+                return $modelEventEmitter( promise );
             }
 
             /**
@@ -187,6 +200,52 @@
 
             // Finally return our super powerful function!
             return createRequest;
+
+            // -------------------------------------------------------------------------------------
+
+            /**
+             * Recursively update references for temporary IDs across the data and URL of a HTTP
+             * config object.
+             *
+             * @param   {Object} config
+             * @returns {Promise}
+             */
+            function updateTempRefs ( config ) {
+                var refs = {};
+                ( config.url.match( $modelTemp.regex ) || [] ).forEach(function ( id ) {
+                    refs[ id ] = refs[ id ] || $modelTemp.get( id );
+                });
+
+                function recursiveFindAndReplace ( obj, replace ) {
+                    angular.forEach( obj, function find ( val, key ) {
+                        // Recursively find/replace temporary IDs if we're dealing with an
+                        // object or array. If we're not, the only requirement is that the field is
+                        // not _id, because we could be messing with data important to PouchDB.
+                        if ( angular.isObject( val ) || angular.isArray( val ) ) {
+                            recursiveFindAndReplace( val, replace );
+                        } else if ( key !== "_id" && $modelTemp.is( val ) ) {
+                            if ( replace ) {
+                                obj[ key ] = refs[ val ];
+                            } else {
+                                refs[ val ] = refs[ val ] || $modelTemp.get( val );
+                            }
+                        }
+                    });
+                }
+
+                recursiveFindAndReplace( config.query || config.data, false );
+
+                return $q.all( refs ).then(function ( resolvedRefs ) {
+                    angular.extend( refs, resolvedRefs );
+
+                    recursiveFindAndReplace( config.query || config.data, true );
+                    config.url = config.url.replace( $modelTemp.regex, function ( match ) {
+                        return refs[ match ];
+                    });
+
+                    return config;
+                });
+            }
         };
 
         return provider;
