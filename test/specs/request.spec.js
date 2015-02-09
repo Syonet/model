@@ -32,7 +32,7 @@ describe( "$modelRequest", function () {
         promise = req( "/foo", "GET" );
         testHelpers.flush( true );
 
-        return expect( promise ).to.eventually.have.property( "data", "foo" );
+        return expect( promise ).to.eventually.equal( "foo" );
     });
 
     it( "should return errored response", function () {
@@ -181,6 +181,26 @@ describe( "$modelRequest", function () {
             expect( req.isSafe( "PUT" ) ).to.not.be.ok;
             expect( req.isSafe( "PATCH" ) ).to.not.be.ok;
             expect( req.isSafe( "DELETE" ) ).to.not.be.ok;
+        });
+    });
+
+    // ---------------------------------------------------------------------------------------------
+
+    describe( ".idFieldHeader", function () {
+        it( "should be used to determine the ID fields in the response headers", function () {
+            var promise;
+
+            provider.idFieldHeader = "X-Id";
+
+            $httpBackend.expectGET( "/foo/bar" ).respond( 200, {
+                baz: "qux"
+            }, {
+                "X-Id": "baz"
+            });
+            promise = req( "/foo/bar", "GET" );
+            expect( promise ).to.eventually.have.property( "_id", "qux" );
+
+            testHelpers.flush();
         });
     });
 

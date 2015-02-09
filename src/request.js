@@ -29,6 +29,12 @@
          */
         provider.altContentLengthHeader = "X-Content-Length";
 
+        /**
+         * The name of the header that contains the ID fields in the response body.
+         * @type    {String}
+         */
+        provider.idFieldHeader = "X-Id-Field";
+
         provider.$get = function ( $timeout, $q, $http, $window, $modelEventEmitter ) {
             var currPing;
 
@@ -159,7 +165,7 @@
                 // config.headers.__modelXHR__ = createXhrNotifier( deferred );
 
                 putAuthorizationHeader( config, options.auth );
-                httpPromise = $http( config ).then( null, function ( response ) {
+                httpPromise = $http( config ).then( applyIdField, function ( response ) {
                     return $q.reject({
                         data: response.data,
                         status: response.status
@@ -184,5 +190,40 @@
         };
 
         return provider;
+
+        // -----------------------------------------------------------------------------------------
+
+        /**
+         * Applies the ID field into a HTTP response.
+         *
+         * @param   {Object} response
+         * @returns {Object|Object[]}
+         */
+        function applyIdField ( response ) {
+            var idFields = response.headers( provider.idFieldHeader ) || "id";
+            var data = response.data;
+            var isArray = angular.isArray( data );
+            data = isArray ? data : [ data ];
+            idFields = idFields.split( "," ).map(function ( field ) {
+                return field.trim();
+            });
+
+            data.forEach(function ( item ) {
+                var id = [];
+                if ( !item ) {
+                    return;
+                }
+
+                angular.forEach( item, function ( value, key ) {
+                    if ( ~idFields.indexOf( key ) ) {
+                        id.push( value );
+                    }
+                });
+
+                item._id = id.join( "," );
+            });
+
+            return isArray ? data : data[ 0 ];
+        }
     }
 }();

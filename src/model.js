@@ -11,12 +11,6 @@
         var SKIP_RESPONSE = {};
 
         /**
-         * The name of the header that contains the ID fields in the response body.
-         * @type    {String}
-         */
-        provider.idFieldHeader = "X-Id-Field";
-
-        /**
          * Get/set the username and password used for authentication.
          *
          * @param   {String} [username]
@@ -58,7 +52,7 @@
                 });
                 req = $modelRequest( url, method, data, options );
 
-                return req.then( applyIdField, function ( err ) {
+                return req.then( null, function ( err ) {
                     if ( !$modelRequest.isSafe( method ) && err.status === 0 ) {
                         return modelSync.store( url, method, data, options ).then(function () {
                             return SKIP_RESPONSE;
@@ -469,39 +463,6 @@
         return provider;
 
         // -----------------------------------------------------------------------------------------
-
-        /**
-         * Applies the ID field into a HTTP response.
-         *
-         * @param   {Object} response
-         * @returns {Object|Object[]}
-         */
-        function applyIdField ( response ) {
-            var idFields = response.headers( provider.idFieldHeader ) || "id";
-            var data = response.data;
-            var isArray = angular.isArray( data );
-            data = isArray ? data : [ data ];
-            idFields = idFields.split( "," ).map(function ( field ) {
-                return field.trim();
-            });
-
-            data.forEach(function ( item ) {
-                var id = [];
-                if ( !item ) {
-                    return;
-                }
-
-                angular.forEach( item, function ( value, key ) {
-                    if ( ~idFields.indexOf( key ) ) {
-                        id.push( value );
-                    }
-                });
-
-                item._id = id.join( "," );
-            });
-
-            return isArray ? data : data[ 0 ];
-        }
 
         /**
          * Remove double slashes from a URL.

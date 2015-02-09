@@ -69,26 +69,6 @@ describe( "model", function () {
 
     // ---------------------------------------------------------------------------------------------
 
-    describe( ".idFieldHeader", function () {
-        it( "should be used to determine the ID fields in the response headers", function () {
-            var promise;
-
-            provider.idFieldHeader = "X-Id";
-
-            $httpBackend.expectGET( "/foo/bar" ).respond( 200, {
-                baz: "qux"
-            }, {
-                "X-Id": "baz"
-            });
-            promise = model( "foo" ).get( "bar" );
-            testHelpers.flush();
-
-            return expect( promise ).to.eventually.have.property( "_id", "qux" );
-        });
-    });
-
-    // ---------------------------------------------------------------------------------------------
-
     describe( ".base()", function () {
         it( "should be used as the base URL for requests", function () {
             model.base( "http://foo/api" );
