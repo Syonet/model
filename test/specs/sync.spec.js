@@ -1,4 +1,4 @@
-describe( "modelSync", function () {
+describe.only( "modelSync", function () {
     "use strict";
 
     var $q, $httpBackend, $interval, db, sync, model, reqProvider, req;
@@ -71,7 +71,7 @@ describe( "modelSync", function () {
         // Make the request service return a rejected promise
         req.returns( $q.reject( "foo" ) );
 
-        return $q.all( stores ).then( sync ).then(function () {
+        return $q.all( stores ).then( sync ).catch( sinon.spy() ).then(function () {
             expect( spy ).to.have.been.calledWith( "error", "foo" );
         });
     });
@@ -108,8 +108,21 @@ describe( "modelSync", function () {
             status: 0
         }));
 
-        return $q.all( stores ).then( sync ).then(function () {
+        return $q.all( stores ).then( sync ).catch( sinon.spy() ).then(function () {
             return expect( db.allDocs() ).to.eventually.have.property( "total_rows", 1 );
+        });
+    });
+
+    it( "should execute requests in series", function () {
+        var stores = [
+            sync.store( "/", "POST" ),
+            sync.store( "/foo", "DELETE" )
+        ];
+        var req1 = req.withArgs( "/", "POST" );
+        var req2 = req.withArgs( "/foo", "DELETE" );
+
+        return $q.all( stores ).then( sync ).then(function () {
+            expect( req1 ).to.have.been.calledBefore( req2 );
         });
     });
 
