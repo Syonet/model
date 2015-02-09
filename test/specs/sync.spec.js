@@ -1,4 +1,4 @@
-describe.only( "modelSync", function () {
+describe( "modelSync", function () {
     "use strict";
 
     var $q, $httpBackend, $interval, db, sync, model, reqProvider, req;
@@ -99,29 +99,25 @@ describe.only( "modelSync", function () {
     }));
 
     it( "should remove sent requests", function () {
-        var stores = [
-            sync.store( "/", "POST" ),
-            sync.store( "/foo", "PATCH" )
-        ];
-
         req.withArgs( "/foo", "PATCH" ).returns( $q.reject({
             status: 0
         }));
 
-        return $q.all( stores ).then( sync ).catch( sinon.spy() ).then(function () {
+        return sync.store( "/", "POST" ).then(function () {
+            return sync.store( "/foo", "PATCH" );
+        }).then( sync ).catch( sinon.spy() ).then(function () {
             return expect( db.allDocs() ).to.eventually.have.property( "total_rows", 1 );
         });
     });
 
     it( "should execute requests in series", function () {
-        var stores = [
-            sync.store( "/", "POST" ),
-            sync.store( "/foo", "DELETE" )
-        ];
-        var req1 = req.withArgs( "/", "POST" );
-        var req2 = req.withArgs( "/foo", "DELETE" );
+        var store = sync.store( "/", "POST" );
+        return store.then(function () {
+            return sync.store( "/foo", "DELETE" );
+        }).then( sync ).then(function () {
+            var req1 = req.withArgs( "/", "POST" );
+            var req2 = req.withArgs( "/foo", "DELETE" );
 
-        return $q.all( stores ).then( sync ).then(function () {
             expect( req1 ).to.have.been.calledBefore( req2 );
         });
     });

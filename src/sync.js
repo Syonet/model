@@ -29,6 +29,13 @@
                 return db.allDocs({
                     include_docs: true
                 }).then(function ( docs ) {
+                    // Order requests by their date of inclusion
+                    docs.rows.sort(function ( a, b ) {
+                        var date1 = new Date( a.doc.date ).getTime();
+                        var date2 = new Date( b.doc.date ).getTime();
+                        return date1 - date2;
+                    });
+
                     return processRequest( docs.rows );
                 }).then(function () {
                     // Don't emit if there were no sent requests
@@ -102,7 +109,8 @@
                     model: url,
                     method: method,
                     data: data,
-                    options: options
+                    options: options,
+                    date: new Date()
                 });
             };
 
