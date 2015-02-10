@@ -59,7 +59,6 @@
          *
          * @param   {Model} model
          * @param   {Object|Object[]} data
-         * @param   {Object} [query]        What query returned this data
          * @returns {Promise}
          */
         function set ( model, data ) {
