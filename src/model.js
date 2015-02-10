@@ -309,6 +309,8 @@
                     }).then(function () {
                         return $modelCache.set( self, docs );
                     });
+                }, function ( err ) {
+                    return $modelCache.remove( self, data ).then( $q.reject( err ) );
                 });
             };
 
@@ -441,14 +443,12 @@
                     }
 
                     promise = createRequest( self, method, data, options );
-                    promise.$$cached = $modelCache[ cacheFn ]( self, data ).then(function ( docs ) {
-                        promise.emit( "cache", docs );
-                        return docs;
-                    });
-
                     return promise.then(function ( docs ) {
                         if ( docs === SKIP_RESPONSE ) {
-                            return promise.$$cached;
+                            return $modelCache[ cacheFn ]( self, data ).then(function ( docs ) {
+                                promise.emit( "cache", docs );
+                                return docs;
+                            });
                         }
 
                         promise.emit( "server", docs );
