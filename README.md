@@ -33,6 +33,24 @@ angular.module( "app" ).controller( "MyController", function ( model ) {
 });
 ```
 
+## Promises + Event Emitter
+Every method in the `model` service that performs an HTTP request will return a promise which is
+also an event emitter. This means those promises will borrow the following API:
+
+### `.on( event, listener )`
+Add a listener `listener` for `event` event.
+
+### `.emit( event, args... )`
+Emit `event` using the provided list of `args`.
+
+Also, when you invoke `.then()` in this promise, it'll keep the event emitter interface with the
+same listeners from the original promise.
+
+All these methods will emit the following events:
+
+* `cache` - when the cache is hit. Normally, the only argument passed is the cached value.
+* `server` - when the server response is received. Normally, the only argument passed is the received value.
+
 ## `model` service API
 ### `[new] model( name )`
 Returns a new Model instance for the `name` collection.
@@ -60,7 +78,7 @@ Lists all elements from a collection, and reutrns a promise for it. Triggers a `
 If this method is invoked in an element, then passing the `collection` argument is mandatory.  
 The `query` argument is passed as query string parameters for the request.
 
-If the request fails with HTTP code `0`, then the cached collection is returned in their previous order.
+If the request fails with HTTP code `0`, then the promise is resolved with the cached value.
 
 Example:
 
@@ -82,20 +100,48 @@ model( "foo" ).get( "bar" ); // GET /foo/bar
 model( "foo" ).id( "bar" ).get(); // GET /foo/bar
 ```
 
-### `.save( data )`
-Save an element or collection and return a promise for it. Triggers a `POST` request and saves the result to the PouchDB cache.
+### `.create( [collection], data )`
+Create one or more elements return a promise for it. Triggers a `POST` request and saves the result to the PouchDB cache.
+If this method is invoked in an element, then passing the `collection` argument is mandatory.
+
+If the HTTP request fails with code `0`, then the elements passed will be created an assigned an temporary ID.
 
 Example:
 
 ```javascript
-model( "foo" ).id( "bar" ).save({
+model( "foo" ).id( "bar" ).create( "baz" {
+    foo: "bar"
+});
+// POST /foo/bar/baz
+// { foo: "bar" }
+
+// Batch create
+model( "foo" ).create([{
+    foo: "bar"
+}, {
+    foo: "baz"
+]);
+// POST /foo
+// [...]
+```
+
+### `.update( data )`
+Update one or more elements and return a promise for it. Triggers a `POST` request and saves the result to the PouchDB cache.
+If this method is invoked in an collection, then it's mandatory to make a batch operation, using `data` as an array.
+
+If the HTTP request fails with code `0`, then the cached data will be replaced with the elements passed.
+
+Example:
+
+```javascript
+model( "foo" ).id( "bar" ).update({
     foo: "bar"
 });
 // POST /foo/bar
 // { foo: "bar" }
 
-// Batch save
-model( "foo" ).save([{
+// Batch patch
+model( "foo" ).update([{
     id: 1,
     foo: "bar"
 }, {
@@ -107,7 +153,10 @@ model( "foo" ).save([{
 ```
 
 ### `.patch( data )`
-Patch an element or collection and return a promise for it. Triggers a `PATCH` request and saves the result to the PouchDB cache.
+Patch one or more elements and return a promise for it. Triggers a `PATCH` request and saves the result to the PouchDB cache.
+If this method is invoked in an collection, then it's mandatory to make a batch operation, using `data` as an array.
+
+If the HTTP request fails with code `0`, then the cached data will be extended with the elements passed.
 
 Example:
 
@@ -118,7 +167,7 @@ model( "foo" ).id( "bar" ).patch({
 // PATCH /foo/bar
 // { foo: "bar" }
 
-// Batch save
+// Batch patch
 model( "foo" ).patch([{
     id: 1,
     foo: "bar"
@@ -139,6 +188,29 @@ Example:
 ```javascript
 model( "foo" ).remove(); // => DELETE /foo
 model( "foo" ).id( "bar" ).remove(); // => DELETE /foo/bar
+```
+
+### model.base( [base] )
+Get or set the base URL for the HTTP requests.
+
+```javascript
+model.base( "/api" );
+model( "foo" ).list(); // GET /api/foo
+
+model.base(); // /api
+```
+
+__Attention:__ When setting a new value, __existing cached data will be removed!__.
+
+### model.auth( [username], [password] )
+Get or set Basic authentication for HTTP requests. If `username` is not defined, then the existing
+auth data will be returned.
+
+```javascript
+model.auth( "foo", "bar" );
+model( "foo" ).list(); // GET /foo with header Authorization: Basic <...>
+
+model.auth(); // { username: "foo", password: "bar" }
 ```
 
 ## License

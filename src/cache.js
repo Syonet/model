@@ -3,7 +3,7 @@
 
     angular.module( "syonet.model" ).factory( "$modelCache", cacheService );
 
-    function cacheService ( $q ) {
+    function cacheService ( $q, $modelTemp ) {
         /**
          * Remove every document passed, or the entire DB if nothing passed.
          *
@@ -59,18 +59,19 @@
          *
          * @param   {Model} model
          * @param   {Object|Object[]} data
-         * @param   {Object} [query]        What query returned this data
          * @returns {Promise}
          */
-        function set ( model, data, query ) {
+        function set ( model, data ) {
             var promises;
             var coll = !model.id();
             var arr = angular.isArray( data );
             data = arr ? data : [ data ];
-            query = query && queryToString( query );
 
             // Find the current revision of each item in the data array
             promises = data.map(function ( item ) {
+                // Generate a temporary ID if doesn't have one
+                item._id = ( item._id || $modelTemp.next() ) + "";
+
                 item = arr || coll ? model.id( item._id ) : model;
                 return item.rev();
             });
@@ -79,14 +80,6 @@
                 data.forEach(function ( item, i ) {
                     removeSpecialKeys( item );
                     createRelations( item, model );
-
-                    // Add the current query to the list of queries that returned this data
-                    item.$queries = item.$queries || [];
-                    if ( query && !~item.$queries.indexOf( query ) ) {
-                        item.$queries.push( query );
-                    }
-
-                    item.$order = i;
                     item._rev = revs[ i ];
                 });
 
@@ -124,27 +117,13 @@
          * Get all documents for a Model.
          *
          * @param   {Model} model
-         * @param   {Object} query
          * @returns {Promise}
          */
-        function getAll ( model, query ) {
-            query = query && queryToString( query );
-            return model.db.query( mapFn, {
+        function getAll ( model ) {
+            return model.db.allDocs({
                 include_docs: true
             }).then(function ( data ) {
-                return data.rows.filter(function ( item ) {
-                    var doc = item.doc;
-                    var hasQueries = angular.isArray( doc.$queries );
-
-                    // Only test for query if a query has been passed
-                    if ( query  ) {
-                        // If this document doesn't have a $queries property or it's not an array,
-                        // then we'll ignore this document.
-                        return hasQueries ? !!~doc.$queries.indexOf( query ) : false;
-                    }
-
-                    return true;
-                }).map(function ( item ) {
+                return data.rows.map(function ( item ) {
                     return item.doc;
                 });
             });
@@ -255,32 +234,6 @@
             }
 
             return true;
-        }
-
-        /**
-         * @param   {Object} query
-         * @returns {String}
-         */
-        function queryToString ( query ) {
-            var keys = Object.keys( query ).sort();
-            return keys.map(function ( key ) {
-                var val = query[ key ];
-                if ( val != null && typeof val === "object" ) {
-                    val = JSON.stringify( val );
-                }
-
-                return encodeURIComponent( key ) + "=" + encodeURIComponent( val );
-            }).join( "&" );
-        }
-
-        /**
-         * Map function for when listing docs offline.
-         * Emits them in the order they were fetched.
-         *
-         * @param   {Object} doc
-         */
-        function mapFn ( doc ) {
-            emit( doc.$order );
         }
 
         return {

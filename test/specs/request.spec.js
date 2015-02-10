@@ -1,7 +1,7 @@
 describe( "$modelRequest", function () {
     "use strict";
 
-    var $http, $httpBackend, req, provider;
+    var $http, $httpBackend, $modelDB, $modelTemp, req, provider;
 
     beforeEach( module( "syonet.model", function ( $provide, $modelRequestProvider ) {
         provider = $modelRequestProvider;
@@ -17,12 +17,17 @@ describe( "$modelRequest", function () {
 
         $http = $injector.get( "$http" );
         $httpBackend = $injector.get( "$httpBackend" );
+        $modelTemp = $injector.get( "$modelTemp" );
+        $modelDB = $injector.get( "$modelDB" );
         req = $injector.get( "$modelRequest" );
     }));
 
     afterEach(function () {
         $httpBackend.verifyNoOutstandingExpectation( false );
         $httpBackend.verifyNoOutstandingRequest( false );
+
+        localStorage.clear();
+        return $modelDB.clear();
     });
 
     it( "should return successful HTTP response", function () {
@@ -32,7 +37,7 @@ describe( "$modelRequest", function () {
         promise = req( "/foo", "GET" );
         testHelpers.flush( true );
 
-        return expect( promise ).to.eventually.have.property( "data", "foo" );
+        return expect( promise ).to.eventually.equal( "foo" );
     });
 
     it( "should return errored response", function () {
@@ -81,6 +86,68 @@ describe( "$modelRequest", function () {
         });
 
         testHelpers.flush();
+    });
+
+    it( "should replace temporary IDs in data", function () {
+        var promise;
+        var tempID = $modelTemp.next();
+        var data = {
+            _id: tempID
+        };
+
+        $httpBackend.expectPOST( "/foo", data ).respond({
+            id: 1
+        });
+
+        promise = req( "/foo", "POST", data );
+        testHelpers.flush();
+
+        return promise.then(function () {
+            $httpBackend.expectPOST( "/foo", {
+                idParent: "1"
+            }).respond({
+                id: 2
+            });
+
+            promise = req( "/foo", "POST", {
+                idParent: tempID
+            });
+
+            setTimeout(function () {
+                testHelpers.digest();
+                testHelpers.flush( true );
+            });
+
+            return promise;
+        });
+    });
+
+    it( "should replace temporary IDs in URL", function () {
+        var promise;
+        var tempID = $modelTemp.next();
+        var data = {
+            _id: tempID
+        };
+
+        $httpBackend.expectPOST( "/foo" ).respond({
+            id: 1
+        });
+
+        promise = req( "/foo", "POST", data );
+        testHelpers.flush();
+
+        return promise.then(function () {
+            $httpBackend.expectGET( "/foo/1/bar" ).respond({});
+
+            promise = req( "/foo/" + tempID + "/bar" , "GET" );
+
+            setTimeout(function () {
+                testHelpers.digest();
+                testHelpers.flush( true );
+            });
+
+            return promise;
+        });
     });
 
     // ---------------------------------------------------------------------------------------------
@@ -181,6 +248,26 @@ describe( "$modelRequest", function () {
             expect( req.isSafe( "PUT" ) ).to.not.be.ok;
             expect( req.isSafe( "PATCH" ) ).to.not.be.ok;
             expect( req.isSafe( "DELETE" ) ).to.not.be.ok;
+        });
+    });
+
+    // ---------------------------------------------------------------------------------------------
+
+    describe( ".idFieldHeader", function () {
+        it( "should be used to determine the ID fields in the response headers", function () {
+            var promise;
+
+            provider.idFieldHeader = "X-Id";
+
+            $httpBackend.expectGET( "/foo/bar" ).respond( 200, {
+                baz: "qux"
+            }, {
+                "X-Id": "baz"
+            });
+            promise = req( "/foo/bar", "GET" );
+            expect( promise ).to.eventually.have.property( "_id", "qux" );
+
+            testHelpers.flush();
         });
     });
 

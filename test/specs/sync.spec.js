@@ -1,13 +1,15 @@
 describe( "modelSync", function () {
     "use strict";
 
-    var $q, $httpBackend, $interval, db, sync, model, reqProvider, req;
+    var $q, $httpBackend, $interval, $modelDB, db, eventEmitter, sync, model, reqProvider, req;
 
     beforeEach( module( "syonet.model", function ( $modelRequestProvider, $provide ) {
         reqProvider = $modelRequestProvider;
 
-        $provide.decorator( "$modelRequest", function ( $q ) {
-            return req = sinon.stub().returns( $q.when( true ) );
+        $provide.decorator( "$modelRequest", function ( $delegate, $q ) {
+            req = sinon.stub().returns( $q.when( true ) );
+            req.isSafe = $delegate.isSafe;
+            return req;
         });
 
         $provide.decorator( "$interval", function ( $delegate ) {
@@ -20,22 +22,21 @@ describe( "modelSync", function () {
 
         $q = $injector.get( "$q" );
         $httpBackend = $injector.get( "$httpBackend" );
-        db = $injector.get( "$modelDB" )( "__updates" );
+        $modelDB = $injector.get( "$modelDB" );
+        eventEmitter = $injector.get( "$modelEventEmitter" );
+        db = $modelDB( "__updates" );
         model = $injector.get( "model" );
         sync = $injector.get( "modelSync" );
     }));
 
     afterEach(function () {
-        return db.destroy();
+        localStorage.clear();
+        return $modelDB.clear();
     });
 
     it( "should have an event emitter interface", function () {
-        var spy = sinon.spy();
-        sync.on( "foo", spy );
-        sync.emit( "foo", "bar" );
-
-        // Event with listeners should call them
-        expect( spy ).to.have.been.calledWith( "bar" );
+        expect( sync.on ).to.be.a( "function" );
+        expect( sync.emit ).to.be.a( "function" );
     });
 
     it( "should retrigger each persisted request and trigger success event", function () {
@@ -45,6 +46,7 @@ describe( "modelSync", function () {
             sync.store( "/foo", "PATCH" )
         ];
 
+        testHelpers.digest( true );
         return $q.all( stores ).then( sync ).then(function () {
             expect( req ).to.have.been.calledWith( "/", "POST" );
             expect( req ).to.have.been.calledWith( "/foo", "PATCH" );
@@ -60,6 +62,7 @@ describe( "modelSync", function () {
             }
         };
 
+        testHelpers.digest( true );
         return sync.store( "/", "POST", null, options ).then( sync ).then(function () {
             expect( req ).to.have.been.calledWith( "/", "POST", null, options );
         });
@@ -75,7 +78,8 @@ describe( "modelSync", function () {
         // Make the request service return a rejected promise
         req.returns( $q.reject( "foo" ) );
 
-        return $q.all( stores ).then( sync ).then(function () {
+        testHelpers.digest( true );
+        return $q.all( stores ).then( sync ).catch( sinon.spy() ).then(function () {
             expect( spy ).to.have.been.calledWith( "error", "foo" );
         });
     });
@@ -103,17 +107,96 @@ describe( "modelSync", function () {
     }));
 
     it( "should remove sent requests", function () {
-        var stores = [
-            sync.store( "/", "POST" ),
-            sync.store( "/foo", "PATCH" )
-        ];
-
         req.withArgs( "/foo", "PATCH" ).returns( $q.reject({
             status: 0
         }));
 
-        return $q.all( stores ).then( sync ).then(function () {
+        testHelpers.digest( true );
+        return sync.store( "/", "POST" ).then(function () {
+            return sync.store( "/foo", "PATCH" );
+        }).then( sync ).catch( sinon.spy() ).then(function () {
             return expect( db.allDocs() ).to.eventually.have.property( "total_rows", 1 );
+        });
+    });
+
+    it( "should execute requests in series", function () {
+        var store = sync.store( "/", "POST" );
+
+        testHelpers.digest( true );
+        return store.then(function () {
+            return sync.store( "/foo", "DELETE" );
+        }).then( sync ).then(function () {
+            var req1 = req.withArgs( "/", "POST" );
+            var req2 = req.withArgs( "/foo", "DELETE" );
+
+            expect( req1 ).to.have.been.calledBefore( req2 );
+        });
+    });
+
+    // ---------------------------------------------------------------------------------------------
+
+    describe( "on rollback", function () {
+        it( "should restore documents to their previous version", function () {
+            var foo = model( "foo" );
+            var data = [{
+                _id: 1,
+                id: 1,
+                foo: "bar"
+            }, {
+                _id: 2,
+                id: 2,
+                foo: "barbaz"
+            }];
+            req.returns( eventEmitter( $q.when( data ) ) );
+
+            return foo.create( data ).then(function () {
+                // Modify something and then update these docs
+                data[ 0 ].foo += "1";
+                data[ 1 ].foo += "1";
+
+                req.returns( eventEmitter( $q.reject({
+                    status: 0
+                })));
+
+                return foo.update( data );
+            }).then(function () {
+                // Must be a non-zero error
+                req.returns( eventEmitter( $q.reject({
+                    status: 500
+                })));
+
+                return sync();
+            }).then( null, sinon.spy() ).then(function () {
+                return foo.db.allDocs({
+                    include_docs: true
+                });
+            }).then(function ( docs ) {
+                expect( docs.rows ).to.have.deep.property( "[0].doc.foo", "bar" );
+                expect( docs.rows ).to.have.deep.property( "[1].doc.foo", "barbaz" );
+            });
+        });
+
+        it( "should remove items with no previous version", function () {
+            var foo = model( "foo" );
+            req.returns( eventEmitter( $q.reject({
+                status: 0
+            })));
+
+            return foo.create({
+                foo: "bar"
+            }).then(function () {
+                // Must be a non-zero error
+                req.returns( eventEmitter( $q.reject({
+                    status: 500
+                })));
+
+                return sync();
+            }).then( null, sinon.spy() ).then(function () {
+                var promise = foo.db.allDocs({
+                    include_docs: true
+                });
+                return expect( promise ).to.eventually.have.property( "total_rows", 0 );
+            });
         });
     });
 
@@ -148,6 +231,7 @@ describe( "modelSync", function () {
 
     describe( ".store( url, method, data )", function () {
         it( "should persist data into updates DB", function () {
+            testHelpers.digest( true );
             return sync.store( "/", "GET" ).then(function () {
                 return db.allDocs({
                     include_docs: true

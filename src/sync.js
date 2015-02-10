@@ -6,7 +6,14 @@
     function modelSyncProvider ( $modelRequestProvider ) {
         var provider = this;
 
-        provider.$get = function ( $q, $interval, $document, $modelRequest, $modelDB ) {
+        provider.$get = function (
+            $q,
+            $interval,
+            $document,
+            $modelRequest,
+            $modelDB,
+            $modelEventEmitter
+        ) {
             var UPDATE_DB_NAME = "__updates";
             var db = $modelDB( UPDATE_DB_NAME );
 
@@ -22,52 +29,69 @@
                 return db.allDocs({
                     include_docs: true
                 }).then(function ( docs ) {
-                    var promises = [];
+                    // Order requests by their date of inclusion
+                    docs.rows.sort(function ( a, b ) {
+                        var date1 = new Date( a.doc.date ).getTime();
+                        var date2 = new Date( b.doc.date ).getTime();
+                        return date1 - date2;
+                    });
 
-                    docs.rows.forEach(function ( row ) {
-                        var doc = row.doc;
+                    return processRequest( docs.rows );
+                }).then(function () {
+                    // Don't emit if there were no sent requests
+                    if ( sentReqs.length ) {
+                        sync.emit( "success" );
+                    }
+                }).finally( clear );
 
-                        // Reconstitute model and try to send the request again
-                        var promise = $modelRequest(
-                            doc.model,
-                            doc.method,
-                            doc.data,
-                            doc.options
-                        ).then(function ( response ) {
+                function processRequest ( rows ) {
+                    var doc;
+                    var row = rows.shift();
+
+                    if ( !row ) {
+                        return $q.when();
+                    }
+
+                    doc = row.doc;
+
+                    // Reconstitute model and try to send the request again
+                    return $modelRequest(
+                        doc.model,
+                        doc.method,
+                        doc.data,
+                        doc.options
+                    ).then(function ( response ) {
+                        sentReqs.push({
+                            _id: row.id,
+                            _rev: row.value.rev
+                        });
+
+                        sync.emit( "response", response, doc );
+                        return processRequest( rows );
+                    }, function ( err ) {
+                        var promise = $q.when();
+                        sync.emit( "error", err, row );
+
+                        // We'll only remove requests which failed in the server.
+                        // Aborted/timed out requests will stay in our cache.
+                        if ( err.status !== 0 ) {
                             sentReqs.push({
                                 _id: row.id,
                                 _rev: row.value.rev
                             });
-                            return response;
-                        }, function ( err ) {
-                            // We'll only remove requests which failed in the server.
-                            // Aborted/timed out requests will stay in our cache.
-                            if ( err.status !== 0 ) {
-                                sentReqs.push({
-                                    _id: row.id,
-                                    _rev: row.value.rev
-                                });
-                            }
 
+                            // If we have docs, we'll try to roll them back to their previous
+                            // versions
+                            if ( doc.db && doc.docs ) {
+                                promise = rollback( doc );
+                            }
+                        }
+
+                        return promise.then(function () {
                             return $q.reject( err );
                         });
-                        promises.push( promise );
                     });
-
-                    return $q.all( promises );
-                }).then(function ( values ) {
-                    // Don't emit if there were no resolved values
-                    if ( values.length ) {
-                        sync.emit( "success" );
-                    }
-
-                    return clear();
-                }, function ( err ) {
-                    // Pass the error to the callbacks whatever it is
-                    sync.emit( "error", err );
-
-                    return clear();
-                });
+                }
 
                 function clear () {
                     sync.$$running = false;
@@ -79,50 +103,48 @@
                 }
             }
 
-            sync.$$events = {};
+            sync = $modelEventEmitter( sync );
 
             /**
              * Store a combination of model/method/data.
              *
-             * @param   {String} url        The model URL
-             * @param   {String} method     The HTTP method
-             * @param   {Object} [data]     Optional data
-             * @param   {Object} [options]  $modelRequest options
+             * @param   {Model|String} model    The model or model URL
+             * @param   {String} method         The HTTP method
+             * @param   {Object} [data]         Optional data
+             * @param   {Object} [options]      $modelRequest options
              * @returns {Promise}
              */
-            sync.store = function ( url, method, data, options ) {
-                return db.post({
-                    model: url,
+            sync.store = function ( model, method, data, options ) {
+                var promise;
+                var isArr = angular.isArray( data );
+                var doc = {
+                    model: typeof model === "string" ? model : model.toURL(),
                     method: method,
                     data: data,
-                    options: options
-                });
-            };
+                    options: options,
+                    date: new Date()
+                };
 
-            /**
-             * Add a event to the synchronization object
-             *
-             * @param   {String} event
-             * @param   {Function} listener
-             * @returns void
-             */
-            sync.on = function ( event, listener ) {
-                sync.$$events[ event ] = sync.$$events[ event ] || [];
-                sync.$$events[ event ].push( listener );
-            };
+                // Optional - store current rev so we can rollback later if request fails
+                if ( model.db && !$modelRequest.isSafe( method ) && data ) {
+                    data = isArr ? data : [ data ];
+                    promise = data.map(function ( item ) {
+                        return $q.all({
+                            _id: item._id,
+                            _rev: model.id( item._id ).rev()
+                        });
+                    });
 
-            /**
-             * Emit a event in the synchronization object
-             *
-             * @param   {String} event
-             * @returns void
-             */
-            sync.emit = function ( event ) {
-                var args = [].slice.call( arguments, 1 );
-                var listeners = sync.$$events[ event ] || [];
+                    doc.db = model._path.name;
+                    promise = $q.all( promise ).then(function ( docs ) {
+                        doc.docs = docs;
+                    });
+                } else {
+                    promise = $q.when();
+                }
 
-                listeners.forEach(function ( listener ) {
-                    listener.apply( null, args );
+                return promise.then(function () {
+                    return db.post( doc );
                 });
             };
 
@@ -155,6 +177,73 @@
             sync.schedule();
 
             return sync;
+
+            // -------------------------------------------------------------------------------------
+
+            /**
+             * Rollback every item stored in an synchronization document.
+             *
+             * @param   {Object} doc
+             * @return  {Promise}
+             */
+            function rollback ( doc ) {
+                var db = $modelDB( doc.db );
+                var promises = doc.docs.map(function ( item ) {
+                    // Get the previous revisions of this item
+                    return db.get( item._id, {
+                        revs: true
+                    }).then(function ( data ) {
+                        var revIndex;
+                        var revs = data._revisions;
+
+                        // Find the revision of this request
+                        item._rev = item._rev || "";
+                        revIndex = revs.ids.indexOf( item._rev.replace( /^\d+-/, "" ) );
+
+                        // Does this item existed before? If not, we'll remove it from the DB.
+                        if ( !~revIndex ) {
+                            return remove();
+                        }
+
+                        return next();
+
+                        // -------------------------------------------------------------------------
+
+                        function remove () {
+                            return db.remove( data._id, data._rev );
+                        }
+
+                        function next () {
+                            // Increase 1, so we'll have the previous revision of the current one
+                            revIndex++;
+
+                            // If there's no next revision, we'll simply remove the item
+                            if ( !revs.ids[ revIndex ] ) {
+                                return remove();
+                            }
+
+                            // Build the revision
+                            item._rev = ( revs.start - revIndex ) + "-" + revs.ids[ revIndex ];
+
+                            // Get the data of the revision that we'll rollback to
+                            return db.get( item._id, {
+                                rev: item._rev
+                            }).then(function ( atRev ) {
+                                if ( atRev._deleted ) {
+                                    return next();
+                                }
+
+                                // And finally overwrite it.
+                                atRev._rev = data._rev;
+
+                                return db.put( atRev );
+                            });
+                        }
+                    });
+                });
+
+                return $q.all( promises );
+            }
         };
 
         return provider;

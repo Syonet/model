@@ -71,21 +71,6 @@ describe( "$modelCache", function () {
                 });
             });
         });
-
-        it( "should store the query that returned that documents", function () {
-            var foo = model( "foo" );
-            var data = [{
-                _id: "foo",
-                foo: "bar"
-            }];
-            var query = {
-                foo: "bar"
-            };
-
-            return expect( cache.set( foo, data, query ) ).to.eventually.have.deep.property(
-                "[0].$queries"
-            ).and.include( "foo=bar" );
-        });
     });
 
     // ---------------------------------------------------------------------------------------------
@@ -217,23 +202,6 @@ describe( "$modelCache", function () {
                 _id: "baz"
             }]).then(function () {
                 return expect( cache.getAll( foo ) ).to.eventually.have.length( 2 );
-            });
-        });
-
-        it( "should return only documents returned by specified query", function () {
-            var foo = model( "foo" );
-            var query = {
-                foo: [ "bar", "baz", "qux" ]
-            };
-
-            return cache.set( foo, [{
-                _id: "bar"
-            }], query ).then(function () {
-                return cache.set( foo, [{
-                    _id: "baz"
-                }]);
-            }).then(function () {
-                return expect( cache.getAll( foo, query ) ).to.eventually.have.length( 1 );
             });
         });
     });
