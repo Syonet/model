@@ -54,7 +54,7 @@
 
                 return req.then( null, function ( err ) {
                     if ( !$modelRequest.isSafe( method ) && err.status === 0 ) {
-                        return modelSync.store( url, method, data, options ).then(function () {
+                        return modelSync.store( model, method, data, options ).then(function () {
                             return SKIP_RESPONSE;
                         });
                     }

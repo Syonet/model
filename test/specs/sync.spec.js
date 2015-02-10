@@ -41,6 +41,7 @@ describe( "modelSync", function () {
             sync.store( "/foo", "PATCH" )
         ];
 
+        testHelpers.digest( true );
         return $q.all( stores ).then( sync ).then(function () {
             expect( req ).to.have.been.calledWith( "/", "POST" );
             expect( req ).to.have.been.calledWith( "/foo", "PATCH" );
@@ -56,6 +57,7 @@ describe( "modelSync", function () {
             }
         };
 
+        testHelpers.digest( true );
         return sync.store( "/", "POST", null, options ).then( sync ).then(function () {
             expect( req ).to.have.been.calledWith( "/", "POST", null, options );
         });
@@ -71,6 +73,7 @@ describe( "modelSync", function () {
         // Make the request service return a rejected promise
         req.returns( $q.reject( "foo" ) );
 
+        testHelpers.digest( true );
         return $q.all( stores ).then( sync ).catch( sinon.spy() ).then(function () {
             expect( spy ).to.have.been.calledWith( "error", "foo" );
         });
@@ -103,6 +106,7 @@ describe( "modelSync", function () {
             status: 0
         }));
 
+        testHelpers.digest( true );
         return sync.store( "/", "POST" ).then(function () {
             return sync.store( "/foo", "PATCH" );
         }).then( sync ).catch( sinon.spy() ).then(function () {
@@ -112,6 +116,8 @@ describe( "modelSync", function () {
 
     it( "should execute requests in series", function () {
         var store = sync.store( "/", "POST" );
+
+        testHelpers.digest( true );
         return store.then(function () {
             return sync.store( "/foo", "DELETE" );
         }).then( sync ).then(function () {
@@ -153,6 +159,7 @@ describe( "modelSync", function () {
 
     describe( ".store( url, method, data )", function () {
         it( "should persist data into updates DB", function () {
+            testHelpers.digest( true );
             return sync.store( "/", "GET" ).then(function () {
                 return db.allDocs({
                     include_docs: true
