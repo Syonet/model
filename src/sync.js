@@ -193,10 +193,12 @@
                     return db.get( item._id, {
                         revs: true
                     }).then(function ( data ) {
+                        var revIndex;
                         var revs = data._revisions;
 
                         // Find the revision of this request
-                        var revIndex = revs.ids.indexOf( item._rev.replace( /^\d+-/, "" ) );
+                        item._rev = item._rev || "";
+                        revIndex = revs.ids.indexOf( item._rev.replace( /^\d+-/, "" ) );
 
                         // Does this item existed before? If not, we'll remove it from the DB.
                         if ( !~revIndex ) {

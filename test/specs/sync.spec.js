@@ -175,6 +175,29 @@ describe( "modelSync", function () {
                 expect( docs.rows ).to.have.deep.property( "[1].doc.foo", "barbaz" );
             });
         });
+
+        it( "should remove items with no previous version", function () {
+            var foo = model( "foo" );
+            req.returns( eventEmitter( $q.reject({
+                status: 0
+            })));
+
+            return foo.create({
+                foo: "bar"
+            }).then(function () {
+                // Must be a non-zero error
+                req.returns( eventEmitter( $q.reject({
+                    status: 500
+                })));
+
+                return sync();
+            }).then( null, sinon.spy() ).then(function () {
+                var promise = foo.db.allDocs({
+                    include_docs: true
+                });
+                return expect( promise ).to.eventually.have.property( "total_rows", 0 );
+            });
+        });
     });
 
     // ---------------------------------------------------------------------------------------------
