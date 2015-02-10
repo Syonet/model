@@ -10,7 +10,7 @@
 
     angular.module( "syonet.model" ).factory( "$modelCache", cacheService );
 
-    function cacheService ( $q ) {
+    function cacheService ( $q, $modelTemp ) {
         /**
          * Remove every document passed, or the entire DB if nothing passed.
          *
@@ -66,18 +66,19 @@
          *
          * @param   {Model} model
          * @param   {Object|Object[]} data
-         * @param   {Object} [query]        What query returned this data
          * @returns {Promise}
          */
-        function set ( model, data, query ) {
+        function set ( model, data ) {
             var promises;
             var coll = !model.id();
             var arr = angular.isArray( data );
             data = arr ? data : [ data ];
-            query = query && queryToString( query );
 
             // Find the current revision of each item in the data array
             promises = data.map(function ( item ) {
+                // Generate a temporary ID if doesn't have one
+                item._id = ( item._id || $modelTemp.next() ) + "";
+
                 item = arr || coll ? model.id( item._id ) : model;
                 return item.rev();
             });
@@ -86,14 +87,6 @@
                 data.forEach(function ( item, i ) {
                     removeSpecialKeys( item );
                     createRelations( item, model );
-
-                    // Add the current query to the list of queries that returned this data
-                    item.$queries = item.$queries || [];
-                    if ( query && !~item.$queries.indexOf( query ) ) {
-                        item.$queries.push( query );
-                    }
-
-                    item.$order = i;
                     item._rev = revs[ i ];
                 });
 
@@ -131,27 +124,13 @@
          * Get all documents for a Model.
          *
          * @param   {Model} model
-         * @param   {Object} query
          * @returns {Promise}
          */
-        function getAll ( model, query ) {
-            query = query && queryToString( query );
-            return model.db.query( mapFn, {
+        function getAll ( model ) {
+            return model.db.allDocs({
                 include_docs: true
             }).then(function ( data ) {
-                return data.rows.filter(function ( item ) {
-                    var doc = item.doc;
-                    var hasQueries = angular.isArray( doc.$queries );
-
-                    // Only test for query if a query has been passed
-                    if ( query  ) {
-                        // If this document doesn't have a $queries property or it's not an array,
-                        // then we'll ignore this document.
-                        return hasQueries ? !!~doc.$queries.indexOf( query ) : false;
-                    }
-
-                    return true;
-                }).map(function ( item ) {
+                return data.rows.map(function ( item ) {
                     return item.doc;
                 });
             });
@@ -264,32 +243,6 @@
             return true;
         }
 
-        /**
-         * @param   {Object} query
-         * @returns {String}
-         */
-        function queryToString ( query ) {
-            var keys = Object.keys( query ).sort();
-            return keys.map(function ( key ) {
-                var val = query[ key ];
-                if ( val != null && typeof val === "object" ) {
-                    val = JSON.stringify( val );
-                }
-
-                return encodeURIComponent( key ) + "=" + encodeURIComponent( val );
-            }).join( "&" );
-        }
-
-        /**
-         * Map function for when listing docs offline.
-         * Emits them in the order they were fetched.
-         *
-         * @param   {Object} doc
-         */
-        function mapFn ( doc ) {
-            emit( doc.$order );
-        }
-
         return {
             remove: remove,
             set: set,
@@ -298,7 +251,7 @@
             getAll: getAll
         };
     }
-    cacheService.$inject = ["$q"];
+    cacheService.$inject = ["$q", "$modelTemp"];
 }();
 !function () {
     "use strict";
@@ -390,12 +343,6 @@
         var SKIP_RESPONSE = {};
 
         /**
-         * The name of the header that contains the ID fields in the response body.
-         * @type    {String}
-         */
-        provider.idFieldHeader = "X-Id-Field";
-
-        /**
          * Get/set the username and password used for authentication.
          *
          * @param   {String} [username]
@@ -437,51 +384,15 @@
                 });
                 req = $modelRequest( url, method, data, options );
 
-                return req.then( applyIdField, function ( err ) {
+                return req.then( null, function ( err ) {
                     if ( !$modelRequest.isSafe( method ) && err.status === 0 ) {
-                        return modelSync.store( url, method, data, options ).then(function () {
+                        return modelSync.store( model, method, data, options ).then(function () {
                             return SKIP_RESPONSE;
                         });
                     }
 
                     return $q.reject( err );
                 });
-            }
-
-            /**
-             * Fetches a PouchDB cached value (if there's no connection) or throws an error.
-             *
-             * @param   {Model} model
-             * @param   {Boolean} single
-             * @param   {Object} query
-             * @param   {Error} err
-             * @returns {Promise}
-             */
-            function fetchCacheOrThrow ( model, single, query, err ) {
-                var promise;
-                var offline = err && err.status === 0;
-                var maybeThrow = function () {
-                    return $q(function ( resolve, reject ) {
-                        // Don't throw if a error is not available
-                        err ? reject( err ) : resolve( null );
-                    });
-                };
-
-                // Don't try to use a cached value coming from PouchDB if a connection is available
-                if ( !offline && err != null ) {
-                    return maybeThrow();
-                }
-
-                promise = single ? $modelCache.getOne( model ) : $modelCache.getAll( model, query );
-                return promise.then(function ( data ) {
-                    // If we're dealing with a collection which has no cached values,
-                    // we must throw
-                    if ( !single && !data.length && err ) {
-                        return $q.reject( err );
-                    }
-
-                    return data;
-                }, maybeThrow );
             }
 
             /**
@@ -604,7 +515,7 @@
              * @returns {Promise}
              */
             Model.prototype.list = function ( collection, query, options ) {
-                var msg;
+                var promise, msg;
                 var self = this;
 
                 if ( this.id() ) {
@@ -621,22 +532,24 @@
                     query = collection;
                 }
 
-                return createRequest( self, "GET", query, options ).then(function ( data ) {
-                    var promise;
+                promise = createRequest( self, "GET", query, options );
+                promise.$$cached = $modelCache.getAll( self ).then(function ( docs ) {
+                    promise.emit( "cache", docs );
+                    return docs;
+                });
 
-                    if ( query ) {
-                        promise = $modelCache.getAll( self, query );
-                    } else {
-                        promise = $q.when();
-                    }
+                return promise.then(function ( docs ) {
+                    promise.emit( "server", docs );
 
-                    return promise.then(function ( docs ) {
-                        return $modelCache.remove( self, docs );
-                    }).then(function () {
-                        return $modelCache.set( self, data, query );
+                    return $modelCache.remove( self ).then(function () {
+                        return $modelCache.set( self, docs );
                     });
                 }, function ( err ) {
-                    return fetchCacheOrThrow( self, false, query, err );
+                    if ( err.status === 0 ) {
+                        return promise.$$cached;
+                    }
+
+                    return $q.reject( err );
                 });
             };
 
@@ -652,6 +565,7 @@
              * @returns {Promise}
              */
             Model.prototype.get = function ( id, options ) {
+                var promise;
                 var self = this;
 
                 if ( !this.id() ) {
@@ -660,85 +574,97 @@
                     options = id;
                 }
 
-                return createRequest( self, "GET", null, options ).then(function ( data ) {
-                    return $modelCache.set( self, data );
+                promise = createRequest( self, "GET", null, options );
+                promise.$$cached = $modelCache.getOne( self ).then(function ( doc ) {
+                    promise.emit( "cache", doc );
+                    return doc;
+                });
+
+                return promise.then(function ( doc ) {
+                    promise.emit( "server", doc );
+                    return $modelCache.set( self, doc );
                 }, function ( err ) {
-                    return fetchCacheOrThrow( self, true, null, err );
+                    if ( err.status === 0 ) {
+                        return promise.$$cached.then( null, function ( e ) {
+                            return $q.reject( e.name === "not_found" ? err : e );
+                        });
+                    }
+
+                    return $q.reject( err );
                 });
             };
 
             /**
-             * Save the current collection/element.
+             * Create one or more elements into the current collection or into
+             * <code>collection</code>.
              * Triggers a POST request.
              *
-             * @param   {*} data            The data to save
-             * @param   {Object} options
+             * @param   {String} [collection]   A subcollection to create the elements on.
+             * @param   {*} data                The data to save
+             * @param   {Object} [options]
              * @returns {Promise}
              */
-            Model.prototype.save = function ( data, options ) {
+            Model.prototype.create = function ( collection, data, options ) {
+                var promise, msg;
                 var self = this;
-                return createRequest( self, "POST", data, options ).then(function ( docs ) {
-                    var id = self.id();
-                    var offline = docs === SKIP_RESPONSE;
 
-                    if ( offline ) {
-                        // When offline on collections, we'll do nothing
-                        if ( !id ) {
-                            return null;
-                        }
+                if ( this.id() ) {
+                    if ( collection ) {
+                        self = this.model( collection );
+                    } else {
+                        msg =
+                            "Can't invoke .create() in a element without specifying " +
+                            "child collection name.";
+                        throw new Error( msg );
+                    }
+                } else {
+                    options = data;
+                    data = collection;
+                }
 
-                        // Otherwise, set the PouchDB's _id, so we can cache and retrieve this
-                        // entity later
-                        data._id = data._id || id;
-                        docs = data;
+                promise = createRequest( self, "POST", data, options );
+                promise.$$cached = $modelCache.set( self, data ).then(function ( docs ) {
+                    promise.emit( "cache", docs );
+                    return docs;
+                });
+
+                return promise.then(function ( docs ) {
+                    if ( docs === SKIP_RESPONSE ) {
+                        return promise.$$cached;
                     }
 
-                    // We'll only update the cache if it's a single document
-                    if ( id || !angular.isArray( data ) ) {
+                    // Wait until the cache response is finished, so we guarantee no duplicated
+                    // data will happen
+                    return promise.$$cached.then(function () {
+                        promise.emit( "server", docs );
+                        return $modelCache.remove( self, data );
+                    }).then(function () {
                         return $modelCache.set( self, docs );
-                    }
-
-                    // If it's a batch POST, then we'll only remove the data and return what
-                    // has been posted.
-                    return $modelCache.remove( self ).then(function () {
-                        return docs;
                     });
+                }, function ( err ) {
+                    return $modelCache.remove( self, data ).then( $q.reject( err ) );
                 });
             };
 
             /**
-             * Patches the current collection/element.
-             * Triggers a PATCH request.
+             * Updates the current collection/element.
+             * Triggers a POST request.
              *
-             * @param   {*} [data]
-             * @param   {Object} options
+             * @param   {Object|Object[]} data
+             * @param   {Object} [options]
              * @returns {Promise}
              */
-            Model.prototype.patch = function ( data, options ) {
-                var self = this;
-                return createRequest( this, "PATCH", data, options ).then(function ( docs ) {
-                    var id = self.id();
+            Model.prototype.update = createUpdateFn( "set", "POST" );
 
-                    if ( docs === SKIP_RESPONSE ) {
-                        // Can't update cache for what we don't know what the ID is
-                        // That's the case of batch patches on collections
-                        if ( !id ) {
-                            return null;
-                        }
-
-                        data._id = id;
-                        return $modelCache.extend( self, data );
-                    }
-
-                    if ( id ) {
-                        return $modelCache.set( self, docs );
-                    }
-
-                    return $modelCache.remove( self ).then(function () {
-                        return docs;
-                    });
-                });
-            };
+            /**
+             * Updates the current collection/element.
+             * Triggers a PATCH request.
+             *
+             * @param   {Object|Object[]} data
+             * @param   {Object} [options]
+             * @returns {Promise}
+             */
+            Model.prototype.patch = createUpdateFn( "extend", "PATCH" );
 
             /**
              * Removes the current collection/element.
@@ -748,16 +674,24 @@
              * @returns {Promise}
              */
             Model.prototype.remove = function ( options ) {
-                var response;
                 var self = this;
+                var promise = createRequest( self, "DELETE", null, options );
 
-                return createRequest( self, "DELETE", null, options ).then(function ( data ) {
-                    response = data;
-                    return fetchCacheOrThrow( self, !!self.id(), null, null );
-                }).then(function ( cached ) {
-                    return $modelCache.remove( self, cached );
-                }).then(function () {
-                    return response === SKIP_RESPONSE ? null : response;
+                // Find the needed docs and remove then from cache right away
+                promise.$$cached = $modelCache[ self.id() ? "getOne" : "getAll" ]( self );
+                promise.$$cached = promise.$$cached.then(function ( data ) {
+                    return $modelCache.remove( self, data ).then(function () {
+                        promise.emit( "cached" );
+                        return null;
+                    });
+                });
+
+                return promise.then(function ( response ) {
+                    if ( response === SKIP_RESPONSE ) {
+                        promise.emit( "server" );
+                    }
+
+                    return promise.$$cached;
                 });
             };
 
@@ -793,44 +727,80 @@
             Model.base( Model.base() || "/" );
 
             return Model;
+
+            // -------------------------------------------------------------------------------------
+
+            /**
+             * Create and return a request function suitable for update/patch offline logic.
+             *
+             * @param   {String} cacheFn    The cache function to use. One of extend or set.
+             * @param   {String} method     The HTTP method to use. One of POST or PATCH.
+             * @returns {Function}
+             */
+            function createUpdateFn ( cacheFn, method ) {
+                return function ( data, options  ) {
+                    var promise;
+                    var self = this;
+
+                    options = angular.extend( {}, options );
+                    options.id = options.id || "id";
+
+                    if ( !self.id() ) {
+                        if ( !angular.isArray( data ) ) {
+                            throw new Error( "Can only do batch operations on arrays" );
+                        }
+
+                        data.forEach(function ( item ) {
+                            item._id = Object.keys( item ).filter( filterKeys );
+                            item._id = item._id.map(function ( key ) {
+                                return item[ key ];
+                            });
+
+                            // Checks for length <= 1 and use index 0 if so.
+                            // This is because only the index 0 is useful when there's only one ID
+                            // key. If there's no ID key defined, then this is also useful as a
+                            // catch method, so no empty ID is passed along.
+                            item._id = item._id.length <= 1 ? item._id[ 0 ] : item._id.join( "," );
+
+                            if ( !item._id ) {
+                                throw new Error(
+                                    "Can't do batch operation without ID defined on all items"
+                                );
+                            }
+
+                            item._id += "";
+                        });
+                    } else {
+                        data._id = self.id();
+                    }
+
+                    promise = createRequest( self, method, data, options );
+                    return promise.then(function ( docs ) {
+                        if ( docs === SKIP_RESPONSE ) {
+                            return $modelCache[ cacheFn ]( self, data ).then(function ( docs ) {
+                                promise.emit( "cache", docs );
+                                return docs;
+                            });
+                        }
+
+                        promise.emit( "server", docs );
+
+                        // Overwrite previously updated cache with the response from the server
+                        return $modelCache.set( self, docs );
+                    });
+
+                    // Helper function for filtering out keys that are not part of the ID of this
+                    // request.
+                    function filterKeys ( key ) {
+                        return !!~options.id.indexOf( key );
+                    }
+                };
+            }
         };
 
         return provider;
 
         // -----------------------------------------------------------------------------------------
-
-        /**
-         * Applies the ID field into a HTTP response.
-         *
-         * @param   {Object} response
-         * @returns {Object|Object[]}
-         */
-        function applyIdField ( response ) {
-            var idFields = response.headers( provider.idFieldHeader ) || "id";
-            var data = response.data;
-            var isArray = angular.isArray( data );
-            data = isArray ? data : [ data ];
-            idFields = idFields.split( "," ).map(function ( field ) {
-                return field.trim();
-            });
-
-            data.forEach(function ( item ) {
-                var id = [];
-                if ( !item ) {
-                    return;
-                }
-
-                angular.forEach( item, function ( value, key ) {
-                    if ( ~idFields.indexOf( key ) ) {
-                        id.push( value );
-                    }
-                });
-
-                item._id = id.join( "," );
-            });
-
-            return isArray ? data : data[ 0 ];
-        }
 
         /**
          * Remove double slashes from a URL.
@@ -902,7 +872,13 @@
          */
         provider.altContentLengthHeader = "X-Content-Length";
 
-        provider.$get = function ( $timeout, $q, $http, $window ) {
+        /**
+         * The name of the header that contains the ID fields in the response body.
+         * @type    {String}
+         */
+        provider.idFieldHeader = "X-Id-Field";
+
+        provider.$get = function ( $timeout, $q, $http, $window, $modelEventEmitter, $modelTemp ) {
             var currPing;
 
             /**
@@ -1010,8 +986,7 @@
              * @returns {Promise}
              */
             function createRequest ( url, method, data, options ) {
-                var pingUrl, config, httpPromise;
-                var deferred = $q.defer();
+                var pingUrl, config, promise;
                 var safe = createRequest.isSafe( method );
 
                 // Ensure options is an object
@@ -1030,18 +1005,30 @@
                 };
 
                 // FIXME This functionality has not been tested yet.
-                config.headers.__modelXHR__ = createXhrNotifier( deferred );
+                // config.headers.__modelXHR__ = createXhrNotifier( deferred );
 
                 putAuthorizationHeader( config, options.auth );
-                httpPromise = $http( config ).then( null, function ( response ) {
-                    return $q.reject({
-                        data: response.data,
-                        status: response.status
+                promise = updateTempRefs( config ).then(function ( config ) {
+                    return $http( config ).then(function ( response ) {
+                        var promise;
+                        response = applyIdField( response );
+                        promise = $q.when( response );
+
+                        // Set an persisted ID to the temporary ID posted
+                        if ( data && $modelTemp.is( data._id ) ) {
+                            promise = $modelTemp.set( data._id, response._id ).then( promise );
+                        }
+
+                        return promise;
+                    }, function ( response ) {
+                        return $q.reject({
+                            data: response.data,
+                            status: response.status
+                        });
                     });
                 });
 
-                deferred.resolve( httpPromise );
-                return deferred.promise;
+                return $modelEventEmitter( promise );
             }
 
             /**
@@ -1056,9 +1043,90 @@
 
             // Finally return our super powerful function!
             return createRequest;
+
+            // -------------------------------------------------------------------------------------
+
+            /**
+             * Recursively update references for temporary IDs across the data and URL of a HTTP
+             * config object.
+             *
+             * @param   {Object} config
+             * @returns {Promise}
+             */
+            function updateTempRefs ( config ) {
+                var refs = {};
+                ( config.url.match( $modelTemp.regex ) || [] ).forEach(function ( id ) {
+                    refs[ id ] = refs[ id ] || $modelTemp.get( id );
+                });
+
+                function recursiveFindAndReplace ( obj, replace ) {
+                    angular.forEach( obj, function ( val, key ) {
+                        // Recursively find/replace temporary IDs if we're dealing with an
+                        // object or array. If we're not, the only requirement is that the field is
+                        // not _id, because we could be messing with data important to PouchDB.
+                        if ( angular.isObject( val ) || angular.isArray( val ) ) {
+                            recursiveFindAndReplace( val, replace );
+                        } else if ( key !== "_id" && $modelTemp.is( val ) ) {
+                            if ( replace ) {
+                                obj[ key ] = refs[ val ];
+                            } else {
+                                refs[ val ] = refs[ val ] || $modelTemp.get( val );
+                            }
+                        }
+                    });
+                }
+
+                recursiveFindAndReplace( config.query || config.data, false );
+
+                return $q.all( refs ).then(function ( resolvedRefs ) {
+                    angular.extend( refs, resolvedRefs );
+
+                    recursiveFindAndReplace( config.query || config.data, true );
+                    config.url = config.url.replace( $modelTemp.regex, function ( match ) {
+                        return refs[ match ];
+                    });
+
+                    return config;
+                });
+            }
         };
 
         return provider;
+
+        // -----------------------------------------------------------------------------------------
+
+        /**
+         * Applies the ID field into a HTTP response.
+         *
+         * @param   {Object} response
+         * @returns {Object|Object[]}
+         */
+        function applyIdField ( response ) {
+            var idFields = response.headers( provider.idFieldHeader ) || "id";
+            var data = response.data;
+            var isArray = angular.isArray( data );
+            data = isArray ? data : [ data ];
+            idFields = idFields.split( "," ).map(function ( field ) {
+                return field.trim();
+            });
+
+            data.forEach(function ( item ) {
+                var id = [];
+                if ( !item ) {
+                    return;
+                }
+
+                angular.forEach( item, function ( value, key ) {
+                    if ( ~idFields.indexOf( key ) ) {
+                        id.push( value );
+                    }
+                });
+
+                item._id = id.join( "," );
+            });
+
+            return isArray ? data : data[ 0 ];
+        }
     }
 }();
 !function () {
@@ -1069,7 +1137,14 @@
     function modelSyncProvider ( $modelRequestProvider ) {
         var provider = this;
 
-        provider.$get = function ( $q, $interval, $document, $modelRequest, $modelDB ) {
+        provider.$get = function (
+            $q,
+            $interval,
+            $document,
+            $modelRequest,
+            $modelDB,
+            $modelEventEmitter
+        ) {
             var UPDATE_DB_NAME = "__updates";
             var db = $modelDB( UPDATE_DB_NAME );
 
@@ -1085,52 +1160,69 @@
                 return db.allDocs({
                     include_docs: true
                 }).then(function ( docs ) {
-                    var promises = [];
+                    // Order requests by their date of inclusion
+                    docs.rows.sort(function ( a, b ) {
+                        var date1 = new Date( a.doc.date ).getTime();
+                        var date2 = new Date( b.doc.date ).getTime();
+                        return date1 - date2;
+                    });
 
-                    docs.rows.forEach(function ( row ) {
-                        var doc = row.doc;
+                    return processRequest( docs.rows );
+                }).then(function () {
+                    // Don't emit if there were no sent requests
+                    if ( sentReqs.length ) {
+                        sync.emit( "success" );
+                    }
+                }).finally( clear );
 
-                        // Reconstitute model and try to send the request again
-                        var promise = $modelRequest(
-                            doc.model,
-                            doc.method,
-                            doc.data,
-                            doc.options
-                        ).then(function ( response ) {
+                function processRequest ( rows ) {
+                    var doc;
+                    var row = rows.shift();
+
+                    if ( !row ) {
+                        return $q.when();
+                    }
+
+                    doc = row.doc;
+
+                    // Reconstitute model and try to send the request again
+                    return $modelRequest(
+                        doc.model,
+                        doc.method,
+                        doc.data,
+                        doc.options
+                    ).then(function ( response ) {
+                        sentReqs.push({
+                            _id: row.id,
+                            _rev: row.value.rev
+                        });
+
+                        sync.emit( "response", response, doc );
+                        return processRequest( rows );
+                    }, function ( err ) {
+                        var promise = $q.when();
+                        sync.emit( "error", err, row );
+
+                        // We'll only remove requests which failed in the server.
+                        // Aborted/timed out requests will stay in our cache.
+                        if ( err.status !== 0 ) {
                             sentReqs.push({
                                 _id: row.id,
                                 _rev: row.value.rev
                             });
-                            return response;
-                        }, function ( err ) {
-                            // We'll only remove requests which failed in the server.
-                            // Aborted/timed out requests will stay in our cache.
-                            if ( err.status !== 0 ) {
-                                sentReqs.push({
-                                    _id: row.id,
-                                    _rev: row.value.rev
-                                });
-                            }
 
+                            // If we have docs, we'll try to roll them back to their previous
+                            // versions
+                            if ( doc.db && doc.docs ) {
+                                promise = rollback( doc );
+                            }
+                        }
+
+                        return promise.then(function () {
                             return $q.reject( err );
                         });
-                        promises.push( promise );
                     });
-
-                    return $q.all( promises );
-                }).then(function ( values ) {
-                    // Don't emit if there were no resolved values
-                    if ( values.length ) {
-                        sync.emit( "success" );
-                    }
-
-                    return clear();
-                }, function ( err ) {
-                    // Pass the error to the callbacks whatever it is
-                    sync.emit( "error", err );
-
-                    return clear();
-                });
+                }
 
                 function clear () {
                     sync.$$running = false;
@@ -1142,50 +1234,48 @@
                 }
             }
 
-            sync.$$events = {};
+            sync = $modelEventEmitter( sync );
 
             /**
              * Store a combination of model/method/data.
              *
-             * @param   {String} url        The model URL
-             * @param   {String} method     The HTTP method
-             * @param   {Object} [data]     Optional data
-             * @param   {Object} [options]  $modelRequest options
+             * @param   {Model|String} model    The model or model URL
+             * @param   {String} method         The HTTP method
+             * @param   {Object} [data]         Optional data
+             * @param   {Object} [options]      $modelRequest options
              * @returns {Promise}
              */
-            sync.store = function ( url, method, data, options ) {
-                return db.post({
-                    model: url,
+            sync.store = function ( model, method, data, options ) {
+                var promise;
+                var isArr = angular.isArray( data );
+                var doc = {
+                    model: typeof model === "string" ? model : model.toURL(),
                     method: method,
                     data: data,
-                    options: options
-                });
-            };
+                    options: options,
+                    date: new Date()
+                };
 
-            /**
-             * Add a event to the synchronization object
-             *
-             * @param   {String} event
-             * @param   {Function} listener
-             * @returns void
-             */
-            sync.on = function ( event, listener ) {
-                sync.$$events[ event ] = sync.$$events[ event ] || [];
-                sync.$$events[ event ].push( listener );
-            };
+                // Optional - store current rev so we can rollback later if request fails
+                if ( model.db && !$modelRequest.isSafe( method ) && data ) {
+                    data = isArr ? data : [ data ];
+                    promise = data.map(function ( item ) {
+                        return $q.all({
+                            _id: item._id,
+                            _rev: model.id( item._id ).rev()
+                        });
+                    });
 
-            /**
-             * Emit a event in the synchronization object
-             *
-             * @param   {String} event
-             * @returns void
-             */
-            sync.emit = function ( event ) {
-                var args = [].slice.call( arguments, 1 );
-                var listeners = sync.$$events[ event ] || [];
+                    doc.db = model._path.name;
+                    promise = $q.all( promise ).then(function ( docs ) {
+                        doc.docs = docs;
+                    });
+                } else {
+                    promise = $q.when();
+                }
 
-                listeners.forEach(function ( listener ) {
-                    listener.apply( null, args );
+                return promise.then(function () {
+                    return db.post( doc );
                 });
             };
 
@@ -1218,11 +1308,194 @@
             sync.schedule();
 
             return sync;
+
+            // -------------------------------------------------------------------------------------
+
+            /**
+             * Rollback every item stored in an synchronization document.
+             *
+             * @param   {Object} doc
+             * @return  {Promise}
+             */
+            function rollback ( doc ) {
+                var db = $modelDB( doc.db );
+                var promises = doc.docs.map(function ( item ) {
+                    // Get the previous revisions of this item
+                    return db.get( item._id, {
+                        revs: true
+                    }).then(function ( data ) {
+                        var revIndex;
+                        var revs = data._revisions;
+
+                        // Find the revision of this request
+                        item._rev = item._rev || "";
+                        revIndex = revs.ids.indexOf( item._rev.replace( /^\d+-/, "" ) );
+
+                        // Does this item existed before? If not, we'll remove it from the DB.
+                        if ( !~revIndex ) {
+                            return remove();
+                        }
+
+                        return next();
+
+                        // -------------------------------------------------------------------------
+
+                        function remove () {
+                            return db.remove( data._id, data._rev );
+                        }
+
+                        function next () {
+                            // Increase 1, so we'll have the previous revision of the current one
+                            revIndex++;
+
+                            // If there's no next revision, we'll simply remove the item
+                            if ( !revs.ids[ revIndex ] ) {
+                                return remove();
+                            }
+
+                            // Build the revision
+                            item._rev = ( revs.start - revIndex ) + "-" + revs.ids[ revIndex ];
+
+                            // Get the data of the revision that we'll rollback to
+                            return db.get( item._id, {
+                                rev: item._rev
+                            }).then(function ( atRev ) {
+                                if ( atRev._deleted ) {
+                                    return next();
+                                }
+
+                                // And finally overwrite it.
+                                atRev._rev = data._rev;
+
+                                return db.put( atRev );
+                            });
+                        }
+                    });
+                });
+
+                return $q.all( promises );
+            }
         };
 
         return provider;
     }
     modelSyncProvider.$inject = ["$modelRequestProvider"];
+}();
+!function () {
+    "use strict";
+
+    angular.module( "syonet.model" ).factory( "$modelTemp", tempService );
+
+    function tempService ( $modelConfig, $modelDB ) {
+        var db = $modelDB( "__temp" );
+        var api = {
+            get regex () {
+                return /\$\$temp\d+/g;
+            }
+        };
+
+        /**
+         * Generate the next temporary ID
+         *
+         * @returns {Number}
+         */
+        api.next = function () {
+            var cfg = $modelConfig.get();
+            cfg.tempID = ( cfg.tempID || 0 ) + 1;
+            $modelConfig.set( cfg );
+
+            return "$$temp" + cfg.tempID;
+        };
+
+        /**
+         * Define an real ID to an temporary one
+         *
+         * @param   {String} tempID
+         * @param   {*} currID
+         * @returns {Promise}
+         */
+        api.set = function ( tempID, currID ) {
+            return db.put({
+                id: currID
+            }, tempID );
+        };
+
+        /**
+         * Return an persisted ID for an temporary one
+         *
+         * @param   {String} tempID
+         * @returns {Promise}
+         */
+        api.get = function ( tempID ) {
+            return db.get( tempID ).then(function ( doc ) {
+                return doc.id;
+            });
+        };
+
+        /**
+         * Determine if a string is a temporary ID.
+         *
+         * @param   {String} id
+         * @returns {Boolean}
+         */
+        api.is = function ( id ) {
+            return api.regex.test( id );
+        };
+
+        return api;
+    }
+    tempService.$inject = ["$modelConfig", "$modelDB"];
+}();
+!function () {
+    "use strict";
+
+    angular.module( "syonet.model" ).factory( "$modelEventEmitter", eventEmitterService );
+
+    function eventEmitterService () {
+        return function makeEmitter ( obj, origin ) {
+            var then = obj.then;
+            if ( typeof then === "function" ) {
+                obj.then = function () {
+                    return makeEmitter( then.apply( this, arguments ), obj );
+                };
+            }
+
+            // Stores event listeners for the object passed
+            obj.$$events = origin && origin.$$events || {};
+
+            /**
+             * Add a event to <code>obj</code>
+             *
+             * @param   {String} name
+             * @param   {Function} listener
+             * @returns void
+             */
+            obj.on = function ( name, listener ) {
+                var store = obj.$$events[ name ] = obj.$$events[ name ] || [];
+                store.push( listener );
+                return obj;
+            };
+
+            /**
+             * Emit a event in <code>obj</code>
+             *
+             * @param   {String} name
+             * @returns void
+             */
+            obj.emit = function ( name ) {
+                var args = [].slice.call( arguments, 1 );
+                var events = obj.$$events[ name ] || [];
+
+                events.forEach(function ( listener ) {
+                    listener.apply( null, args );
+                });
+
+                return obj;
+            };
+
+            return obj;
+        };
+    }
 }();
 !function () {
     "use strict";
