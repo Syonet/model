@@ -301,8 +301,12 @@
                         return promise.$$cached;
                     }
 
-                    promise.emit( "server", docs );
-                    return $modelCache.remove( self, data ).then(function () {
+                    // Wait until the cache response is finished, so we guarantee no duplicated
+                    // data will happen
+                    return promise.$$cached.then(function () {
+                        promise.emit( "server", docs );
+                        return $modelCache.remove( self, data );
+                    }).then(function () {
                         return $modelCache.set( self, docs );
                     });
                 });
@@ -429,6 +433,8 @@
                                     "Can't do batch operation without ID defined on all items"
                                 );
                             }
+
+                            item._id += "";
                         });
                     } else {
                         data._id = self.id();
