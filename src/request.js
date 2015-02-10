@@ -217,7 +217,7 @@
                 });
 
                 function recursiveFindAndReplace ( obj, replace ) {
-                    angular.forEach( obj, function find ( val, key ) {
+                    angular.forEach( obj, function ( val, key ) {
                         // Recursively find/replace temporary IDs if we're dealing with an
                         // object or array. If we're not, the only requirement is that the field is
                         // not _id, because we could be messing with data important to PouchDB.
