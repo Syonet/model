@@ -6,7 +6,9 @@
     function tempService ( $modelConfig, $modelDB ) {
         var db = $modelDB( "__temp" );
         var api = {
-            regex: /\$\$temp\d+/g
+            get regex () {
+                return /\$\$temp\d+/g;
+            }
         };
 
         /**
