@@ -189,21 +189,54 @@
             function rollback ( doc ) {
                 var db = $modelDB( doc.db );
                 var promises = doc.docs.map(function ( item ) {
-                    // If no revision is available, let's not rollback this item
-                    if ( item._rev ) {
-                        return;
-                    }
-
-                    // Get the previous revision of this item...
+                    // Get the previous revisions of this item
                     return db.get( item._id, {
-                        rev: item._rev
+                        revs: true
                     }).then(function ( data ) {
-                        // ...get the current revision of this item...
-                        return db.get( item._id ).then(function ( curr ) {
-                            // ...and overwrite it with the previous revision.
-                            delete data._rev;
-                            return db.put( data, item._id, curr._rev );
-                        });
+                        var revs = data._revisions;
+
+                        // Find the revision of this request
+                        var revIndex = revs.ids.indexOf( item._rev.replace( /^\d+-/, "" ) );
+
+                        // Does this item existed before? If not, we'll remove it from the DB.
+                        if ( !~revIndex ) {
+                            return remove();
+                        }
+
+                        return next();
+
+                        // -------------------------------------------------------------------------
+
+                        function remove () {
+                            return db.remove( data._id, data._rev );
+                        }
+
+                        function next () {
+                            // Increase 1, so we'll have the previous revision of the current one
+                            revIndex++;
+
+                            // If there's no next revision, we'll simply remove the item
+                            if ( !revs.ids[ revIndex ] ) {
+                                return remove();
+                            }
+
+                            // Build the revision
+                            item._rev = ( revs.start - revIndex ) + "-" + revs.ids[ revIndex ];
+
+                            // Get the data of the revision that we'll rollback to
+                            return db.get( item._id, {
+                                rev: item._rev
+                            }).then(function ( atRev ) {
+                                if ( atRev._deleted ) {
+                                    return next();
+                                }
+
+                                // And finally overwrite it.
+                                atRev._rev = data._rev;
+
+                                return db.put( atRev );
+                            });
+                        }
                     });
                 });
 

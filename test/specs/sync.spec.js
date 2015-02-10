@@ -1,13 +1,15 @@
 describe( "modelSync", function () {
     "use strict";
 
-    var $q, $httpBackend, $interval, db, sync, model, reqProvider, req;
+    var $q, $httpBackend, $interval, $modelDB, db, eventEmitter, sync, model, reqProvider, req;
 
     beforeEach( module( "syonet.model", function ( $modelRequestProvider, $provide ) {
         reqProvider = $modelRequestProvider;
 
-        $provide.decorator( "$modelRequest", function ( $q ) {
-            return req = sinon.stub().returns( $q.when( true ) );
+        $provide.decorator( "$modelRequest", function ( $delegate, $q ) {
+            req = sinon.stub().returns( $q.when( true ) );
+            req.isSafe = $delegate.isSafe;
+            return req;
         });
 
         $provide.decorator( "$interval", function ( $delegate ) {
@@ -20,13 +22,16 @@ describe( "modelSync", function () {
 
         $q = $injector.get( "$q" );
         $httpBackend = $injector.get( "$httpBackend" );
-        db = $injector.get( "$modelDB" )( "__updates" );
+        $modelDB = $injector.get( "$modelDB" );
+        eventEmitter = $injector.get( "$modelEventEmitter" );
+        db = $modelDB( "__updates" );
         model = $injector.get( "model" );
         sync = $injector.get( "modelSync" );
     }));
 
     afterEach(function () {
-        return db.destroy();
+        localStorage.clear();
+        return $modelDB.clear();
     });
 
     it( "should have an event emitter interface", function () {
@@ -125,6 +130,50 @@ describe( "modelSync", function () {
             var req2 = req.withArgs( "/foo", "DELETE" );
 
             expect( req1 ).to.have.been.calledBefore( req2 );
+        });
+    });
+
+    // ---------------------------------------------------------------------------------------------
+
+    describe( "on rollback", function () {
+        it( "should restore documents to their previous version", function () {
+            var foo = model( "foo" );
+            var data = [{
+                _id: 1,
+                id: 1,
+                foo: "bar"
+            }, {
+                _id: 2,
+                id: 2,
+                foo: "barbaz"
+            }];
+            req.returns( eventEmitter( $q.when( data ) ) );
+
+            return foo.create( data ).then(function () {
+                // Modify something and then update these docs
+                data[ 0 ].foo += "1";
+                data[ 1 ].foo += "1";
+
+                req.returns( eventEmitter( $q.reject({
+                    status: 0
+                })));
+
+                return foo.update( data );
+            }).then(function () {
+                // Must be a non-zero error
+                req.returns( eventEmitter( $q.reject({
+                    status: 500
+                })));
+
+                return sync();
+            }).then( null, sinon.spy() ).then(function () {
+                return foo.db.allDocs({
+                    include_docs: true
+                });
+            }).then(function ( docs ) {
+                expect( docs.rows ).to.have.deep.property( "[0].doc.foo", "bar" );
+                expect( docs.rows ).to.have.deep.property( "[1].doc.foo", "barbaz" );
+            });
         });
     });
 
