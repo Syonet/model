@@ -183,19 +183,11 @@
              * @returns {Promise}
              */
             Model.prototype.list = function ( collection, query, options ) {
-                var promise, msg;
+                var promise;
                 var self = this;
 
-                if ( this.id() ) {
-                    if ( collection ) {
-                        self = this.model( collection );
-                    } else {
-                        msg =
-                            "Can't invoke .list() in a element without specifying " +
-                            "child collection name.";
-                        throw new Error( msg );
-                    }
-                } else {
+                self = invokeInCollection( self, collection, "list" );
+                if ( !this.id() ) {
                     options = query;
                     query = collection;
                 }
@@ -279,19 +271,11 @@
              * @returns {Promise}
              */
             Model.prototype.create = function ( collection, data, options ) {
-                var promise, msg;
+                var promise;
                 var self = this;
 
-                if ( this.id() ) {
-                    if ( collection ) {
-                        self = this.model( collection );
-                    } else {
-                        msg =
-                            "Can't invoke .create() in a element without specifying " +
-                            "child collection name.";
-                        throw new Error( msg );
-                    }
-                } else {
+                self = invokeInCollection( self, collection, "create" );
+                if ( !this.id() ) {
                     options = data;
                     data = collection;
                 }
@@ -469,6 +453,32 @@
                         return !!~options.id.indexOf( key );
                     }
                 };
+            }
+
+            /**
+             * Instantiate a subcollection for a element or throw error.
+             * Used by .list() and .create().
+             *
+             * @param   {Model} self
+             * @param   {String} collection
+             * @param   {String} method
+             * @returns {Model}
+             */
+            function invokeInCollection ( self, collection, method ) {
+                var msg;
+
+                if ( self.id() ) {
+                    if ( collection ) {
+                        self = self.model( collection );
+                    } else {
+                        msg =
+                            "Can't invoke ." + method + "() in a element without specifying " +
+                            "child collection name.";
+                        throw new Error( msg );
+                    }
+                }
+
+                return self;
             }
         };
 
