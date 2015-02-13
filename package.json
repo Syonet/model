@@ -1,6 +1,6 @@
 {
     "name": "syonet.model",
-    "version": "2.1.1",
+    "version": "2.1.2",
     "repository": "syonet/model",
     "dependencies": {},
     "devDependencies": {
