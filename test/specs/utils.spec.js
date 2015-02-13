@@ -34,4 +34,13 @@ describe( "$modelEventEmitter", function () {
         obj.then( sinon.spy() ).emit( "foo" );
         expect( spy ).to.have.been.called;
     });
+
+    it( "should allow adding one listener to various events", function () {
+        var fn = function () {};
+        var obj = makeEmitter({});
+
+        obj.on( "foo bar", fn );
+        expect( obj.$$events.foo ).to.have.length( 1 );
+        expect( obj.$$events.bar ).to.have.length( 1 );
+    });
 });

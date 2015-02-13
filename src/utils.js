@@ -23,8 +23,10 @@
              * @returns void
              */
             obj.on = function ( name, listener ) {
-                var store = obj.$$events[ name ] = obj.$$events[ name ] || [];
-                store.push( listener );
+                name.split( " " ).forEach(function ( evt ) {
+                    var store = obj.$$events[ evt ] = obj.$$events[ evt ] || [];
+                    store.push( listener );
+                });
                 return obj;
             };
 
