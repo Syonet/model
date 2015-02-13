@@ -4,6 +4,9 @@
     angular.module( "syonet.model" ).factory( "$modelCache", cacheService );
 
     function cacheService ( $q, $modelTemp ) {
+        var MANAGEMENT_DATA = "$$model";
+        var PROTECTED_DOCS = [ MANAGEMENT_DATA ];
+
         /**
          * Remove every document passed, or the entire DB if nothing passed.
          *
@@ -185,6 +188,39 @@
         }
 
         /**
+         * Compact DB data if needed
+         *
+         * @param   {Model} model
+         * @returns {Promise}
+         */
+        function compact ( model ) {
+            var db = model.db;
+            return db.get( MANAGEMENT_DATA ).then( checkCompaction, function () {
+                // Wrapped this function instead of simply passing it to the errback just to
+                // control what goes into the args
+                return checkCompaction();
+            });
+
+            function checkCompaction ( mgmt ) {
+                mgmt = mgmt || {
+                    _id: MANAGEMENT_DATA,
+                    lastCompactionIndex: 0
+                };
+
+                return db.info().then(function ( info ) {
+                    // Only compact if we are more than 1000 updates outdated.
+                    // Less than that is just not enough to justify.
+                    if ( mgmt.lastCompactionIndex + 1000 <= info.update_seq ) {
+                        return db.compact().then(function () {
+                            mgmt.lastCompactionIndex = info.update_seq;
+                            return db.post( mgmt );
+                        });
+                    }
+                });
+            }
+        }
+
+        /**
          * Remove special properties for PouchDB from an item
          *
          * Removes all properties starting with _ (except _id), as they're special for PouchDB, and
@@ -236,12 +272,14 @@
             return true;
         }
 
+        // I'd love to have ES6 shorthands for the case below
         return {
             remove: remove,
             set: set,
             extend: extend,
             getOne: getOne,
-            getAll: getAll
+            getAll: getAll,
+            compact: compact
         };
     }
 }();

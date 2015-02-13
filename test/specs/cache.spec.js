@@ -205,4 +205,42 @@ describe( "$modelCache", function () {
             });
         });
     });
+
+    // ---------------------------------------------------------------------------------------------
+
+    describe( ".compact()", function () {
+        var $q;
+
+        beforeEach( inject(function ( _$q_ ) {
+            $q = _$q_;
+        }));
+
+        it( "should compact each 1000 updates to the DB", function () {
+            var foo = model( "foo" );
+            var spy = sinon.spy( foo.db, "compact" );
+
+            sinon.stub( foo.db, "info" ).returns( $q.when({
+                update_seq: 1000
+            }));
+
+            return cache.compact( foo ).then(function () {
+                return cache.compact( foo );
+            }).then(function () {
+                expect( spy ).to.have.been.calledOnce;
+            });
+        });
+
+        it( "should compact each 1000 updates to the DB", function () {
+            var foo = model( "foo" );
+            var spy = sinon.spy( foo.db, "compact" );
+
+            sinon.stub( foo.db, "info" ).returns( $q.when({
+                update_seq: 999
+            }));
+
+            return cache.compact( foo ).then(function () {
+                expect( spy ).to.not.have.been.called;
+            });
+        });
+    });
 });
