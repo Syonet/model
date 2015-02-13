@@ -40,6 +40,11 @@
                 var args = [].slice.call( arguments, 1 );
                 var events = obj.$$events[ name ] || [];
 
+                // Create a event object info and unshift it into the args
+                args.unshift({
+                    type: name
+                });
+
                 events.forEach(function ( listener ) {
                     listener.apply( null, args );
                 });

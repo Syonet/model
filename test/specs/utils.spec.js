@@ -17,7 +17,9 @@ describe( "$modelEventEmitter", function () {
         obj.emit( "foo", "bar" );
 
         // Event with listeners should call them
-        expect( spy ).to.have.been.calledWith( "bar" );
+        expect( spy ).to.have.been.calledWith({
+            type: "foo"
+        }, "bar" );
     });
 
     it( "should return original object", function () {
