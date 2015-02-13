@@ -249,6 +249,10 @@
                 });
 
                 return promise.then(function ( doc ) {
+                    // Use the ID from the model instead of the ID from PouchDB if we have one.
+                    // This allows us to have a sane ID management.
+                    doc._id = self.id() || doc._id;
+
                     promise.emit( "server", doc );
                     return $modelCache.set( self, doc );
                 }, function ( err ) {
