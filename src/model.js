@@ -210,6 +210,8 @@
                     promise.emit( "server", docs );
 
                     return $modelCache.remove( self ).then(function () {
+                        return self.db.compact();
+                    }).then(function () {
                         return $modelCache.set( self, docs );
                     });
                 }, function ( err ) {

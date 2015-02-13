@@ -291,6 +291,20 @@ describe( "model", function () {
                 });
             });
 
+            it( "should compact DB", function () {
+                var promise;
+                var foo = model( "foo" );
+                var spy = sinon.spy( foo.db, "compact" );
+
+                $httpBackend.expectGET( "/foo" ).respond( [] );
+                promise = foo.list();
+                testHelpers.flush();
+
+                return promise.then(function () {
+                    expect( spy ).to.have.been.called;
+                });
+            });
+
             it( "should not use cached value if error happens", function () {
                 var promise;
                 var foo = model( "foo" );
