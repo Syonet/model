@@ -515,19 +515,11 @@
              * @returns {Promise}
              */
             Model.prototype.list = function ( collection, query, options ) {
-                var promise, msg;
+                var promise;
                 var self = this;
 
-                if ( this.id() ) {
-                    if ( collection ) {
-                        self = this.model( collection );
-                    } else {
-                        msg =
-                            "Can't invoke .list() in a element without specifying " +
-                            "child collection name.";
-                        throw new Error( msg );
-                    }
-                } else {
+                self = invokeInCollection( self, collection, "list" );
+                if ( !this.id() ) {
                     options = query;
                     query = collection;
                 }
@@ -542,6 +534,8 @@
                     promise.emit( "server", docs );
 
                     return $modelCache.remove( self ).then(function () {
+                        return self.db.compact();
+                    }).then(function () {
                         return $modelCache.set( self, docs );
                     });
                 }, function ( err ) {
@@ -581,6 +575,10 @@
                 });
 
                 return promise.then(function ( doc ) {
+                    // Use the ID from the model instead of the ID from PouchDB if we have one.
+                    // This allows us to have a sane ID management.
+                    doc._id = self.id() || doc._id;
+
                     promise.emit( "server", doc );
                     return $modelCache.set( self, doc );
                 }, function ( err ) {
@@ -605,19 +603,11 @@
              * @returns {Promise}
              */
             Model.prototype.create = function ( collection, data, options ) {
-                var promise, msg;
+                var promise;
                 var self = this;
 
-                if ( this.id() ) {
-                    if ( collection ) {
-                        self = this.model( collection );
-                    } else {
-                        msg =
-                            "Can't invoke .create() in a element without specifying " +
-                            "child collection name.";
-                        throw new Error( msg );
-                    }
-                } else {
+                self = invokeInCollection( self, collection, "create" );
+                if ( !this.id() ) {
                     options = data;
                     data = collection;
                 }
@@ -795,6 +785,32 @@
                         return !!~options.id.indexOf( key );
                     }
                 };
+            }
+
+            /**
+             * Instantiate a subcollection for a element or throw error.
+             * Used by .list() and .create().
+             *
+             * @param   {Model} self
+             * @param   {String} collection
+             * @param   {String} method
+             * @returns {Model}
+             */
+            function invokeInCollection ( self, collection, method ) {
+                var msg;
+
+                if ( self.id() ) {
+                    if ( collection ) {
+                        self = self.model( collection );
+                    } else {
+                        msg =
+                            "Can't invoke ." + method + "() in a element without specifying " +
+                            "child collection name.";
+                        throw new Error( msg );
+                    }
+                }
+
+                return self;
             }
         };
 
@@ -1471,8 +1487,10 @@
              * @returns void
              */
             obj.on = function ( name, listener ) {
-                var store = obj.$$events[ name ] = obj.$$events[ name ] || [];
-                store.push( listener );
+                name.split( " " ).forEach(function ( evt ) {
+                    var store = obj.$$events[ evt ] = obj.$$events[ evt ] || [];
+                    store.push( listener );
+                });
                 return obj;
             };
 
@@ -1485,6 +1503,11 @@
             obj.emit = function ( name ) {
                 var args = [].slice.call( arguments, 1 );
                 var events = obj.$$events[ name ] || [];
+
+                // Create a event object info and unshift it into the args
+                args.unshift({
+                    type: name
+                });
 
                 events.forEach(function ( listener ) {
                     listener.apply( null, args );
