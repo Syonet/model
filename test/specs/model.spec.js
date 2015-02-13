@@ -294,7 +294,8 @@ describe( "model", function () {
             it( "should compact DB", function () {
                 var promise;
                 var foo = model( "foo" );
-                var spy = sinon.spy( foo.db, "compact" );
+                var $modelCache = injector.get( "$modelCache" );
+                var spy = sinon.spy( $modelCache, "compact" );
 
                 $httpBackend.expectGET( "/foo" ).respond( [] );
                 promise = foo.list();
