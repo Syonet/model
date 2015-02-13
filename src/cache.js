@@ -35,7 +35,9 @@
 
             return promise.then(function () {
                 // Find the current revision of each item in the data array
-                var promises = data.map( function ( item ) {
+                var promises = data.filter(function ( item ) {
+                    return !~PROTECTED_DOCS.indexOf( item._id );
+                }).map( function ( item ) {
                     item = arr || coll ? model.id( item._id ) : model;
                     return item.rev();
                 });
