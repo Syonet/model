@@ -252,7 +252,7 @@
                 }, function ( err ) {
                     if ( err.status === 0 ) {
                         return promise.$$cached.then( null, function ( e ) {
-                            return $q.reject( e.name === "not_found" ? err : e );
+                            return $q.reject( !e || e.name === "not_found" ? err : e );
                         });
                     }
 
