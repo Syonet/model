@@ -128,7 +128,9 @@
             }).then(function ( data ) {
                 return data.rows.map(function ( item ) {
                     return item.doc;
-                }).filter( filterProtected );
+                }).filter(function ( item ) {
+                    return checkRelations( item, model ) && filterProtected( item );
+                });
             });
         }
 

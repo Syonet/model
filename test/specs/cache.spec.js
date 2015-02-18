@@ -226,6 +226,23 @@ describe( "$modelCache", function () {
                 return expect( cache.getAll( foo ) ).to.eventually.eql( [] );
             });
         });
+
+        it( "should return cached documents with same parents", function () {
+            var baz = model( "foo" ).id( "bar" ).model( "baz" );
+            return cache.set( baz, [{
+                _id: "qux"
+            }, {
+                _id: "quux"
+            }]).then(function () {
+                var baz = model( "baz" );
+                return cache.set( baz, [{
+                    _id: "xyz"
+                }]);
+            }).then(function () {
+                var promise = cache.getAll( baz );
+                return expect( promise ).to.eventually.have.length( 2 );
+            });
+        });
     });
 
     // ---------------------------------------------------------------------------------------------
