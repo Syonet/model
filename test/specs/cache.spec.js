@@ -1,12 +1,17 @@
 describe( "$modelCache", function () {
     "use strict";
 
-    var model, cache;
+    var db, model, cache;
     beforeEach( module( "syonet.model" ) );
     beforeEach( inject(function ( $injector ) {
         model = $injector.get( "model" );
         cache = $injector.get( "$modelCache" );
+        db = $injector.get( "$modelDB" );
     }));
+
+    afterEach(function () {
+        return db.clear();
+    });
 
     describe( ".set()", function () {
         it( "should create documents when they don't exist", function () {
@@ -194,6 +199,12 @@ describe( "$modelCache", function () {
     // ---------------------------------------------------------------------------------------------
 
     describe( ".getAll()", function () {
+        var $q;
+
+        beforeEach( inject(function ( _$q_ ) {
+            $q = _$q_;
+        }));
+
         it( "should return all cached documents", function () {
             var foo = model( "foo" );
             return cache.set( foo, [{
@@ -202,6 +213,17 @@ describe( "$modelCache", function () {
                 _id: "baz"
             }]).then(function () {
                 return expect( cache.getAll( foo ) ).to.eventually.have.length( 2 );
+            });
+        });
+
+        it( "should not return protected documents", function () {
+            var foo = model( "foo" );
+            sinon.stub( foo.db, "info" ).returns( $q.when({
+                update_seq: 1000
+            }));
+
+            return cache.compact( foo ).then(function () {
+                return expect( cache.getAll( foo ) ).to.eventually.eql( [] );
             });
         });
     });

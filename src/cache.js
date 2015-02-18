@@ -35,9 +35,7 @@
 
             return promise.then(function () {
                 // Find the current revision of each item in the data array
-                var promises = data.filter(function ( item ) {
-                    return !~PROTECTED_DOCS.indexOf( item._id );
-                }).map( function ( item ) {
+                var promises = data.filter( filterProtected ).map( function ( item ) {
                     item = arr || coll ? model.id( item._id ) : model;
                     return item.rev();
                 });
@@ -130,7 +128,7 @@
             }).then(function ( data ) {
                 return data.rows.map(function ( item ) {
                     return item.doc;
-                });
+                }).filter( filterProtected );
             });
         }
 
@@ -272,6 +270,17 @@
             }
 
             return true;
+        }
+
+        /**
+         * Returns whether the item is a protected document.
+         * Useful for usage as the callback of Array.prototype.filter()
+         *
+         * @param   {Object} item
+         * @returns {Boolean}
+         */
+        function filterProtected ( item ) {
+            return !~PROTECTED_DOCS.indexOf( item._id );
         }
 
         // I'd love to have ES6 shorthands for the case below
