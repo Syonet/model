@@ -58,11 +58,14 @@ All these methods will emit the following events:
 ### `[new] model( name )`
 Returns a new Model instance for the `name` collection.
 
+### `.db`
+Provides access to the underlying PouchDB instance.
+
 ### `.id( [id] )`
 Get the ID of the current element, or create a new element with the specified ID and return it.
 
 ### `.model( name )`
-Create a new model for the specified `name` collection and return it.
+Create a new child model for the specified `name` collection and return it.
 
 ### `.rev()`
 Return a promise for the current revision of the element, or `null` if no revision is found.  
