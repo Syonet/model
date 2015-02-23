@@ -37,8 +37,11 @@ angular.module( "app" ).controller( "MyController", function ( model ) {
 Every method in the `model` service that performs an HTTP request will return a promise which is
 also an event emitter. This means those promises will borrow the following API:
 
-### `.on( event, listener )`
-Add a listener `listener` for `event` event.
+### `.on( event, listener( event, [args...] ) )`
+Add a listener `listener` for `event` event. `listener` will receive the following arguments:
+
+* `event`: An object that stores data related to the triggered event, e.g. the event type via `type` property.
+* `args...`: One or more custom arguments passed to the listeners.
 
 ### `.emit( event, args... )`
 Emit `event` using the provided list of `args`.
