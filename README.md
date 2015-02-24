@@ -62,7 +62,12 @@ Returns a new Model instance for the `name` collection.
 Provides access to the underlying PouchDB instance.
 
 ### `.id( [id] )`
-Get the ID of the current element, or create a new element with the specified ID and return it.
+Get the ID of the current element, or create a new child element with the specified ID and return it
+
+```js
+var user = model( "user" ).id( 100 );
+console.log( user.id() ); // prints 100
+```
 
 ### `.model( name )`
 Create a new child model for the specified `name` collection and return it.
