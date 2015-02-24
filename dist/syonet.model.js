@@ -135,7 +135,9 @@
             }).then(function ( data ) {
                 return data.rows.map(function ( item ) {
                     return item.doc;
-                }).filter( filterProtected );
+                }).filter(function ( item ) {
+                    return checkRelations( item, model ) && filterProtected( item );
+                });
             });
         }
 
@@ -1054,6 +1056,10 @@
                 var pingUrl, config, promise;
                 var safe = createRequest.isSafe( method );
 
+                // Synchronously check if we're dealing with an temporary ID.
+                // Can't do this later because $modelCache.set may override this value
+                var isTemp = data && $modelTemp.is( data._id );
+
                 // Ensure options is an object
                 options = options || {};
 
@@ -1080,7 +1086,7 @@
                         promise = $q.when( response );
 
                         // Set an persisted ID to the temporary ID posted
-                        if ( data && $modelTemp.is( data._id ) ) {
+                        if ( isTemp ) {
                             promise = $modelTemp.set( data._id, response._id ).then( promise );
                         }
 
@@ -1090,6 +1096,12 @@
                             data: response.data,
                             status: response.status
                         });
+                    });
+                }, function () {
+                    // Let's emulate a offline connection if some temp refs wheren't found
+                    return $q.reject({
+                        data: null,
+                        status: 0
                     });
                 });
 
