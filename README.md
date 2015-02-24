@@ -5,6 +5,13 @@ Angular.js RESTful API with fallback to PouchDB when offline.
 [![Code Climate](https://img.shields.io/codeclimate/github/Syonet/model.svg?style=flat-square)](https://codeclimate.com/github/Syonet/model)
 [![Coverage](https://img.shields.io/coveralls/Syonet/model.svg?style=flat-square)](https://coveralls.io/r/Syonet/model)
 
+## Table of Contents
+* [Installation](#installation)
+* [Usage](#usage)
+* [Promises + Event Emitter](#promises--event-emitter)
+* [`model` service API](#model-service-api)
+* [License](#license)
+
 ## Installation
 Install with Bower:
 
