@@ -10,7 +10,7 @@
 
     angular.module( "syonet.model" ).factory( "$modelCache", cacheService );
 
-    function cacheService ( $q, $modelTemp ) {
+    function cacheService ( $modelPromise, $modelTemp ) {
         var MANAGEMENT_DATA = "$$model";
         var PROTECTED_DOCS = [ MANAGEMENT_DATA ];
 
@@ -28,7 +28,7 @@
             if ( data ) {
                 arr = angular.isArray( data );
                 data = arr ? data : [ data ];
-                promise = $q.when();
+                promise = $modelPromise.when();
             } else {
                 // If there's no data, we'll remove everything from the DB
                 promise = model.db.allDocs().then(function ( docs ) {
@@ -47,7 +47,7 @@
                     return item.rev();
                 });
 
-                return $q.all( promises );
+                return $modelPromise.all( promises );
             }).then(function ( revs ) {
                 data = revs.map(function ( rev, i ) {
                     return {
@@ -86,7 +86,7 @@
                 return item.rev();
             });
 
-            return $q.all( promises ).then(function ( revs ) {
+            return $modelPromise.all( promises ).then(function ( revs ) {
                 data.forEach(function ( item, i ) {
                     removeSpecialKeys( item );
                     createRelations( item, model );
@@ -108,7 +108,7 @@
          */
         function getOne ( model ) {
             var id = model.id();
-            return id ? model.db.get( id ) : model.db.allDocs({
+            var promise = id ? model.db.get( id ) : model.db.allDocs({
                 include_docs: true
             }).then(function ( data ) {
                 var i, doc;
@@ -119,8 +119,10 @@
                     }
                 }
 
-                return $q.reject();
+                return $modelPromise.reject();
             });
+
+            return $modelPromise.when( promise );
         }
 
         /**
@@ -130,7 +132,7 @@
          * @returns {Promise}
          */
         function getAll ( model ) {
-            return model.db.allDocs({
+            var promise = model.db.allDocs({
                 include_docs: true
             }).then(function ( data ) {
                 return data.rows.map(function ( item ) {
@@ -139,6 +141,8 @@
                     return checkRelations( item, model ) && filterProtected( item );
                 });
             });
+
+            return $modelPromise.when( promise );
         }
 
         /**
@@ -150,7 +154,7 @@
          * @returns {Promise}
          */
         function extend ( model, data ) {
-            var ids;
+            var ids, promise;
             // Will store data that's going to be updated
             var bulkData = [];
             var db = model.db;
@@ -162,7 +166,7 @@
                 return item._id;
             });
 
-            return db.allDocs({
+            promise = db.allDocs({
                 include_docs: true
             }).then(function ( docs ) {
                 docs.rows.forEach(function ( row ) {
@@ -194,6 +198,8 @@
             }).then(function () {
                 return arr ? bulkData : bulkData[ 0 ];
             });
+
+            return $modelPromise.when( promise );
         }
 
         /**
@@ -204,11 +210,13 @@
          */
         function compact ( model ) {
             var db = model.db;
-            return db.get( MANAGEMENT_DATA ).then( checkCompaction, function () {
+            var promise = db.get( MANAGEMENT_DATA ).then( checkCompaction, function () {
                 // Wrapped this function instead of simply passing it to the errback just to
                 // control what goes into the args
                 return checkCompaction();
             });
+
+            return $modelPromise.when( promise );
 
             function checkCompaction ( mgmt ) {
                 mgmt = mgmt || {
@@ -302,7 +310,7 @@
             compact: compact
         };
     }
-    cacheService.$inject = ["$q", "$modelTemp"];
+    cacheService.$inject = ["$modelPromise", "$modelTemp"];
 }();
 !function () {
     "use strict";
@@ -344,7 +352,7 @@
          */
         provider.dbNamePrefix = "modelDB";
 
-        provider.$get = function ( $q, pouchDB ) {
+        provider.$get = function ( $modelPromise, pouchDB ) {
             var instances = {};
 
             /**
@@ -372,7 +380,7 @@
                     promises.push( db.destroy() );
                 });
 
-                return $q.all( promises );
+                return $modelPromise.all( promises );
             };
 
             return getDB;
@@ -411,7 +419,7 @@
         };
 
         provider.$get = function (
-            $q,
+            $modelPromise,
             $modelConfig,
             $modelRequest,
             $modelDB,
@@ -442,7 +450,7 @@
                         });
                     }
 
-                    return $q.reject( err );
+                    return $modelPromise.reject( err );
                 });
             }
 
@@ -512,7 +520,7 @@
              */
             Model.prototype.rev = function () {
                 var id = this.id();
-                var deferred = $q.defer();
+                var deferred = $modelPromise.defer();
 
                 if ( !id ) {
                     throw new Error( "Can't get revision of a collection!" );
@@ -594,7 +602,7 @@
                         return promise.$$cached;
                     }
 
-                    return $q.reject( err );
+                    return $modelPromise.reject( err );
                 });
             };
 
@@ -635,11 +643,11 @@
                 }, function ( err ) {
                     if ( err.status === 0 ) {
                         return promise.$$cached.then( null, function ( e ) {
-                            return $q.reject( !e || e.name === "not_found" ? err : e );
+                            return $modelPromise.reject( !e || e.name === "not_found" ? err : e );
                         });
                     }
 
-                    return $q.reject( err );
+                    return $modelPromise.reject( err );
                 });
             };
 
@@ -683,7 +691,7 @@
                         return $modelCache.set( self, docs );
                     });
                 }, function ( err ) {
-                    return $modelCache.remove( self, data ).then( $q.reject( err ) );
+                    return $modelCache.remove( self, data ).then( $modelPromise.reject( err ) );
                 });
             };
 
@@ -742,7 +750,7 @@
              * @param   {String} [base]
              */
             Model.base = function ( base ) {
-                var deferred = $q.defer();
+                var deferred = $modelPromise.defer();
                 var cfg = $modelConfig.get();
                 if ( base == null ) {
                     return cfg.baseUrl;
@@ -945,7 +953,7 @@
          */
         provider.idFieldHeader = "X-Id-Field";
 
-        provider.$get = function ( $timeout, $q, $http, $window, $modelEventEmitter, $modelTemp ) {
+        provider.$get = function ( $timeout, $http, $window, $modelPromise, $modelTemp ) {
             var currPing;
 
             /**
@@ -974,7 +982,7 @@
                     timeout: provider.timeout
                 }).then(function () {
                     clearPingRequest();
-                    return $q.reject( new Error( "Succesfully pinged RESTful server" ) );
+                    return $modelPromise.reject( new Error( "Succesfully pinged RESTful server" ) );
                 }, function ( err ) {
                     clearPingRequest();
                     return err;
@@ -1053,7 +1061,7 @@
              * @returns {Promise}
              */
             function createRequest ( url, method, data, options ) {
-                var pingUrl, config, promise;
+                var pingUrl, config;
                 var safe = createRequest.isSafe( method );
 
                 // Synchronously check if we're dealing with an temporary ID.
@@ -1062,6 +1070,14 @@
 
                 // Ensure options is an object
                 options = options || {};
+
+                // Allow bypassing the request - this will be treated as an offline response.
+                if ( options.bypass ) {
+                    return $modelPromise.reject({
+                        status: 0,
+                        data: null
+                    });
+                }
 
                 // Create the URL to ping
                 pingUrl = options.baseUrl || getPingUrl( url );
@@ -1079,11 +1095,11 @@
                 // config.headers.__modelXHR__ = createXhrNotifier( deferred );
 
                 putAuthorizationHeader( config, options.auth );
-                promise = updateTempRefs( config ).then(function ( config ) {
+                return updateTempRefs( config ).then(function ( config ) {
                     return $http( config ).then(function ( response ) {
                         var promise;
                         response = applyIdField( response );
-                        promise = $q.when( response );
+                        promise = $modelPromise.when( response );
 
                         // Set an persisted ID to the temporary ID posted
                         if ( isTemp ) {
@@ -1092,20 +1108,18 @@
 
                         return promise;
                     }, function ( response ) {
-                        return $q.reject({
+                        return $modelPromise.reject({
                             data: response.data,
                             status: response.status
                         });
                     });
                 }, function () {
                     // Let's emulate a offline connection if some temp refs wheren't found
-                    return $q.reject({
+                    return $modelPromise.reject({
                         data: null,
                         status: 0
                     });
                 });
-
-                return $modelEventEmitter( promise );
             }
 
             /**
@@ -1155,7 +1169,7 @@
 
                 recursiveFindAndReplace( config.query || config.data, false );
 
-                return $q.all( refs ).then(function ( resolvedRefs ) {
+                return $modelPromise.all( refs ).then(function ( resolvedRefs ) {
                     angular.extend( refs, resolvedRefs );
 
                     recursiveFindAndReplace( config.query || config.data, true );
@@ -1214,18 +1228,13 @@
     function modelSyncProvider ( $modelRequestProvider ) {
         var provider = this;
 
-        provider.$get = function (
-            $q,
-            $interval,
-            $document,
-            $modelRequest,
-            $modelDB,
-            $modelEventEmitter
-        ) {
+        provider.$get = function ( $interval, $document, $modelRequest, $modelDB, $modelPromise ) {
             var UPDATE_DB_NAME = "__updates";
             var db = $modelDB( UPDATE_DB_NAME );
 
             function sync () {
+                var promise;
+
                 // Will store the requests sent, so they can be removed later
                 var sentReqs = [];
 
@@ -1234,7 +1243,7 @@
                 }
 
                 sync.$$running = true;
-                return db.allDocs({
+                promise = db.allDocs({
                     include_docs: true
                 }).then(function ( docs ) {
                     // Order requests by their date of inclusion
@@ -1252,12 +1261,14 @@
                     }
                 }).finally( clear );
 
+                return $modelPromise.when( promise );
+
                 function processRequest ( rows ) {
                     var doc;
                     var row = rows.shift();
 
                     if ( !row ) {
-                        return $q.when();
+                        return $modelPromise.when();
                     }
 
                     doc = row.doc;
@@ -1277,7 +1288,7 @@
                         sync.emit( "response", response, doc );
                         return processRequest( rows );
                     }, function ( err ) {
-                        var promise = $q.when();
+                        var promise = $modelPromise.when();
                         sync.emit( "error", err, row );
 
                         // We'll only remove requests which failed in the server.
@@ -1296,7 +1307,7 @@
                         }
 
                         return promise.then(function () {
-                            return $q.reject( err );
+                            return $modelPromise.reject( err );
                         });
                     });
                 }
@@ -1311,7 +1322,7 @@
                 }
             }
 
-            sync = $modelEventEmitter( sync );
+            $modelPromise.makeEmitter( sync );
 
             /**
              * Store a combination of model/method/data.
@@ -1337,18 +1348,18 @@
                 if ( model.db && !$modelRequest.isSafe( method ) && data ) {
                     data = isArr ? data : [ data ];
                     promise = data.map(function ( item ) {
-                        return $q.all({
+                        return $modelPromise.all({
                             _id: item._id,
                             _rev: model.id( item._id ).rev()
                         });
                     });
 
                     doc.db = model._path.name;
-                    promise = $q.all( promise ).then(function ( docs ) {
+                    promise = $modelPromise.all( promise ).then(function ( docs ) {
                         doc.docs = docs;
                     });
                 } else {
-                    promise = $q.when();
+                    promise = $modelPromise.when();
                 }
 
                 return promise.then(function () {
@@ -1450,7 +1461,7 @@
                     });
                 });
 
-                return $q.all( promises );
+                return $modelPromise.all( promises );
             }
         };
 
@@ -1526,10 +1537,10 @@
 !function () {
     "use strict";
 
-    angular.module( "syonet.model" ).factory( "$modelEventEmitter", eventEmitterService );
+    angular.module( "syonet.model" ).factory( "$modelPromise", promiseService );
 
-    function eventEmitterService () {
-        return function makeEmitter ( obj, origin ) {
+    function promiseService ( $q ) {
+        function makeEmitter ( obj, origin ) {
             var then = obj.then;
             if ( typeof then === "function" ) {
                 obj.then = function () {
@@ -1578,8 +1589,30 @@
             };
 
             return obj;
+        }
+
+        function modelPromise ( resolver ) {
+            return makeEmitter( $q( resolver ) );
+        }
+
+        modelPromise.makeEmitter = makeEmitter;
+
+        modelPromise.defer = function () {
+            var deferred = $q.defer();
+            deferred.promise = makeEmitter( deferred.promise );
+
+            return deferred;
         };
+
+        [ "when", "reject", "all" ].forEach( function ( method ) {
+            modelPromise[ method ] = function ( value ) {
+                return makeEmitter( $q[ method ]( value ) );
+            };
+        });
+
+        return modelPromise;
     }
+    promiseService.$inject = ["$q"];
 }();
 !function () {
     "use strict";
