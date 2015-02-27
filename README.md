@@ -41,8 +41,8 @@ angular.module( "app" ).controller( "MyController", function ( model ) {
 ```
 
 ## Promises + Event Emitter
-Every method in the `model` service that performs an HTTP request will return a promise which is
-also an event emitter. This means those promises will borrow the following API:
+Every method in the `model` service will return a promise which is also an event emitter.
+This means those promises will borrow the following API:
 
 ### `.on( event, listener( event, [args...] ) )`
 Add a listener `listener` for `event` event. `listener` will receive the following arguments:
@@ -80,11 +80,11 @@ console.log( user.id() ); // prints 100
 Create a new child model for the specified `name` collection and return it.
 
 ### `.rev()`
-Return a promise for the current revision of the element, or `null` if no revision is found.  
+Return a promise for the current revision of the element, or `null` if no revision is found.
 This method will throw an `Error` if invoked in a collection.
 
 ### `.toURL()`
-Return the URL for the current model, including its base URL. If the ID is an array, they're joined with a comma `,`.  
+Return the URL for the current model, including its base URL. If the ID is an array, they're joined with a comma `,`.
 Example:
 
 ```javascript
@@ -92,8 +92,8 @@ model( "foo" ).id( "bar" ).toURL(); // => /foo/bar
 ```
 
 ### `.list( [collection], [query] )`
-Lists all elements from a collection, and reutrns a promise for it. Triggers a `GET` request and saves the result to the PouchDB cache.  
-If this method is invoked in an element, then passing the `collection` argument is mandatory.  
+Lists all elements from a collection, and reutrns a promise for it. Triggers a `GET` request and saves the result to the PouchDB cache.
+If this method is invoked in an element, then passing the `collection` argument is mandatory.
 The `query` argument is passed as query string parameters for the request.
 
 If the request fails with HTTP code `0`, then the promise is resolved with the cached value.
@@ -106,8 +106,8 @@ model( "foo" ).id( "bar" ).list( "baz" ); // GET /foo/bar/baz
 ```
 
 ### `.get( [id] )`
-Get a element and returns a promise for it. Triggers a `GET` request and saves the result to the PouchDB cache.  
-If this method is invoked in an collection, then passing the `id` argument is mandatory.  
+Get a element and returns a promise for it. Triggers a `GET` request and saves the result to the PouchDB cache.
+If this method is invoked in an collection, then passing the `id` argument is mandatory.
 
 If the request fails with HTTP code `0`, then the cached element is returned.
 
