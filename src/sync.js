@@ -6,18 +6,13 @@
     function modelSyncProvider ( $modelRequestProvider ) {
         var provider = this;
 
-        provider.$get = function (
-            $q,
-            $interval,
-            $document,
-            $modelRequest,
-            $modelDB,
-            $modelEventEmitter
-        ) {
+        provider.$get = function ( $interval, $document, $modelRequest, $modelDB, $modelPromise ) {
             var UPDATE_DB_NAME = "__updates";
             var db = $modelDB( UPDATE_DB_NAME );
 
             function sync () {
+                var promise;
+
                 // Will store the requests sent, so they can be removed later
                 var sentReqs = [];
 
@@ -26,7 +21,7 @@
                 }
 
                 sync.$$running = true;
-                return db.allDocs({
+                promise = db.allDocs({
                     include_docs: true
                 }).then(function ( docs ) {
                     // Order requests by their date of inclusion
@@ -44,12 +39,14 @@
                     }
                 }).finally( clear );
 
+                return $modelPromise.when( promise );
+
                 function processRequest ( rows ) {
                     var doc;
                     var row = rows.shift();
 
                     if ( !row ) {
-                        return $q.when();
+                        return $modelPromise.when();
                     }
 
                     doc = row.doc;
@@ -69,7 +66,7 @@
                         sync.emit( "response", response, doc );
                         return processRequest( rows );
                     }, function ( err ) {
-                        var promise = $q.when();
+                        var promise = $modelPromise.when();
                         sync.emit( "error", err, row );
 
                         // We'll only remove requests which failed in the server.
@@ -88,7 +85,7 @@
                         }
 
                         return promise.then(function () {
-                            return $q.reject( err );
+                            return $modelPromise.reject( err );
                         });
                     });
                 }
@@ -103,7 +100,7 @@
                 }
             }
 
-            sync = $modelEventEmitter( sync );
+            $modelPromise.makeEmitter( sync );
 
             /**
              * Store a combination of model/method/data.
@@ -129,18 +126,18 @@
                 if ( model.db && !$modelRequest.isSafe( method ) && data ) {
                     data = isArr ? data : [ data ];
                     promise = data.map(function ( item ) {
-                        return $q.all({
+                        return $modelPromise.all({
                             _id: item._id,
                             _rev: model.id( item._id ).rev()
                         });
                     });
 
                     doc.db = model._path.name;
-                    promise = $q.all( promise ).then(function ( docs ) {
+                    promise = $modelPromise.all( promise ).then(function ( docs ) {
                         doc.docs = docs;
                     });
                 } else {
-                    promise = $q.when();
+                    promise = $modelPromise.when();
                 }
 
                 return promise.then(function () {
@@ -242,7 +239,7 @@
                     });
                 });
 
-                return $q.all( promises );
+                return $modelPromise.all( promises );
             }
         };
 

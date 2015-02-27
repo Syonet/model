@@ -12,7 +12,7 @@
          */
         provider.dbNamePrefix = "modelDB";
 
-        provider.$get = function ( $q, pouchDB ) {
+        provider.$get = function ( $modelPromise, pouchDB ) {
             var instances = {};
 
             /**
@@ -40,7 +40,7 @@
                     promises.push( db.destroy() );
                 });
 
-                return $q.all( promises );
+                return $modelPromise.all( promises );
             };
 
             return getDB;

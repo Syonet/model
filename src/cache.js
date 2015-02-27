@@ -3,7 +3,7 @@
 
     angular.module( "syonet.model" ).factory( "$modelCache", cacheService );
 
-    function cacheService ( $q, $modelTemp ) {
+    function cacheService ( $modelPromise, $modelTemp ) {
         var MANAGEMENT_DATA = "$$model";
         var PROTECTED_DOCS = [ MANAGEMENT_DATA ];
 
@@ -21,7 +21,7 @@
             if ( data ) {
                 arr = angular.isArray( data );
                 data = arr ? data : [ data ];
-                promise = $q.when();
+                promise = $modelPromise.when();
             } else {
                 // If there's no data, we'll remove everything from the DB
                 promise = model.db.allDocs().then(function ( docs ) {
@@ -40,7 +40,7 @@
                     return item.rev();
                 });
 
-                return $q.all( promises );
+                return $modelPromise.all( promises );
             }).then(function ( revs ) {
                 data = revs.map(function ( rev, i ) {
                     return {
@@ -79,7 +79,7 @@
                 return item.rev();
             });
 
-            return $q.all( promises ).then(function ( revs ) {
+            return $modelPromise.all( promises ).then(function ( revs ) {
                 data.forEach(function ( item, i ) {
                     removeSpecialKeys( item );
                     createRelations( item, model );
@@ -101,7 +101,7 @@
          */
         function getOne ( model ) {
             var id = model.id();
-            return id ? model.db.get( id ) : model.db.allDocs({
+            var promise = id ? model.db.get( id ) : model.db.allDocs({
                 include_docs: true
             }).then(function ( data ) {
                 var i, doc;
@@ -112,8 +112,10 @@
                     }
                 }
 
-                return $q.reject();
+                return $modelPromise.reject();
             });
+
+            return $modelPromise.when( promise );
         }
 
         /**
@@ -123,7 +125,7 @@
          * @returns {Promise}
          */
         function getAll ( model ) {
-            return model.db.allDocs({
+            var promise = model.db.allDocs({
                 include_docs: true
             }).then(function ( data ) {
                 return data.rows.map(function ( item ) {
@@ -132,6 +134,8 @@
                     return checkRelations( item, model ) && filterProtected( item );
                 });
             });
+
+            return $modelPromise.when( promise );
         }
 
         /**
@@ -143,7 +147,7 @@
          * @returns {Promise}
          */
         function extend ( model, data ) {
-            var ids;
+            var ids, promise;
             // Will store data that's going to be updated
             var bulkData = [];
             var db = model.db;
@@ -155,7 +159,7 @@
                 return item._id;
             });
 
-            return db.allDocs({
+            promise = db.allDocs({
                 include_docs: true
             }).then(function ( docs ) {
                 docs.rows.forEach(function ( row ) {
@@ -187,6 +191,8 @@
             }).then(function () {
                 return arr ? bulkData : bulkData[ 0 ];
             });
+
+            return $modelPromise.when( promise );
         }
 
         /**
@@ -197,11 +203,13 @@
          */
         function compact ( model ) {
             var db = model.db;
-            return db.get( MANAGEMENT_DATA ).then( checkCompaction, function () {
+            var promise = db.get( MANAGEMENT_DATA ).then( checkCompaction, function () {
                 // Wrapped this function instead of simply passing it to the errback just to
                 // control what goes into the args
                 return checkCompaction();
             });
+
+            return $modelPromise.when( promise );
 
             function checkCompaction ( mgmt ) {
                 mgmt = mgmt || {

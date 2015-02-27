@@ -1,12 +1,12 @@
-describe( "$modelEventEmitter", function () {
+describe( "$modelPromise", function () {
     "use strict";
 
     var $q, makeEmitter;
 
     beforeEach( module( "syonet.model" ) );
-    beforeEach( inject(function ( _$q_, $modelEventEmitter ) {
+    beforeEach( inject(function ( _$q_, $modelPromise ) {
         $q = _$q_;
-        makeEmitter = $modelEventEmitter;
+        makeEmitter = $modelPromise.makeEmitter;
     }));
 
     it( "should return object with an event emitter interface", function () {

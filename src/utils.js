@@ -1,10 +1,10 @@
 !function () {
     "use strict";
 
-    angular.module( "syonet.model" ).factory( "$modelEventEmitter", eventEmitterService );
+    angular.module( "syonet.model" ).factory( "$modelPromise", promiseService );
 
-    function eventEmitterService () {
-        return function makeEmitter ( obj, origin ) {
+    function promiseService ( $q ) {
+        function makeEmitter ( obj, origin ) {
             var then = obj.then;
             if ( typeof then === "function" ) {
                 obj.then = function () {
@@ -53,6 +53,27 @@
             };
 
             return obj;
+        }
+
+        function modelPromise ( resolver ) {
+            return makeEmitter( $q( resolver ) );
+        }
+
+        modelPromise.makeEmitter = makeEmitter;
+
+        modelPromise.defer = function () {
+            var deferred = $q.defer();
+            deferred.promise = makeEmitter( deferred.promise );
+
+            return deferred;
         };
+
+        [ "when", "reject", "all" ].forEach( function ( method ) {
+            modelPromise[ method ] = function ( value ) {
+                return makeEmitter( $q[ method ]( value ) );
+            };
+        });
+
+        return modelPromise;
     }
 }();

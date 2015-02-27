@@ -28,7 +28,7 @@
         };
 
         provider.$get = function (
-            $q,
+            $modelPromise,
             $modelConfig,
             $modelRequest,
             $modelDB,
@@ -59,7 +59,7 @@
                         });
                     }
 
-                    return $q.reject( err );
+                    return $modelPromise.reject( err );
                 });
             }
 
@@ -129,7 +129,7 @@
              */
             Model.prototype.rev = function () {
                 var id = this.id();
-                var deferred = $q.defer();
+                var deferred = $modelPromise.defer();
 
                 if ( !id ) {
                     throw new Error( "Can't get revision of a collection!" );
@@ -211,7 +211,7 @@
                         return promise.$$cached;
                     }
 
-                    return $q.reject( err );
+                    return $modelPromise.reject( err );
                 });
             };
 
@@ -252,11 +252,11 @@
                 }, function ( err ) {
                     if ( err.status === 0 ) {
                         return promise.$$cached.then( null, function ( e ) {
-                            return $q.reject( !e || e.name === "not_found" ? err : e );
+                            return $modelPromise.reject( !e || e.name === "not_found" ? err : e );
                         });
                     }
 
-                    return $q.reject( err );
+                    return $modelPromise.reject( err );
                 });
             };
 
@@ -300,7 +300,7 @@
                         return $modelCache.set( self, docs );
                     });
                 }, function ( err ) {
-                    return $modelCache.remove( self, data ).then( $q.reject( err ) );
+                    return $modelCache.remove( self, data ).then( $modelPromise.reject( err ) );
                 });
             };
 
@@ -359,7 +359,7 @@
              * @param   {String} [base]
              */
             Model.base = function ( base ) {
-                var deferred = $q.defer();
+                var deferred = $modelPromise.defer();
                 var cfg = $modelConfig.get();
                 if ( base == null ) {
                     return cfg.baseUrl;

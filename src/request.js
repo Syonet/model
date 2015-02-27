@@ -35,7 +35,7 @@
          */
         provider.idFieldHeader = "X-Id-Field";
 
-        provider.$get = function ( $timeout, $q, $http, $window, $modelEventEmitter, $modelTemp ) {
+        provider.$get = function ( $timeout, $http, $window, $modelPromise, $modelTemp ) {
             var currPing;
 
             /**
@@ -64,7 +64,7 @@
                     timeout: provider.timeout
                 }).then(function () {
                     clearPingRequest();
-                    return $q.reject( new Error( "Succesfully pinged RESTful server" ) );
+                    return $modelPromise.reject( new Error( "Succesfully pinged RESTful server" ) );
                 }, function ( err ) {
                     clearPingRequest();
                     return err;
@@ -143,7 +143,7 @@
              * @returns {Promise}
              */
             function createRequest ( url, method, data, options ) {
-                var pingUrl, config, promise;
+                var pingUrl, config;
                 var safe = createRequest.isSafe( method );
 
                 // Synchronously check if we're dealing with an temporary ID.
@@ -169,11 +169,11 @@
                 // config.headers.__modelXHR__ = createXhrNotifier( deferred );
 
                 putAuthorizationHeader( config, options.auth );
-                promise = updateTempRefs( config ).then(function ( config ) {
+                return updateTempRefs( config ).then(function ( config ) {
                     return $http( config ).then(function ( response ) {
                         var promise;
                         response = applyIdField( response );
-                        promise = $q.when( response );
+                        promise = $modelPromise.when( response );
 
                         // Set an persisted ID to the temporary ID posted
                         if ( isTemp ) {
@@ -182,20 +182,18 @@
 
                         return promise;
                     }, function ( response ) {
-                        return $q.reject({
+                        return $modelPromise.reject({
                             data: response.data,
                             status: response.status
                         });
                     });
                 }, function () {
                     // Let's emulate a offline connection if some temp refs wheren't found
-                    return $q.reject({
+                    return $modelPromise.reject({
                         data: null,
                         status: 0
                     });
                 });
-
-                return $modelEventEmitter( promise );
             }
 
             /**
@@ -245,7 +243,7 @@
 
                 recursiveFindAndReplace( config.query || config.data, false );
 
-                return $q.all( refs ).then(function ( resolvedRefs ) {
+                return $modelPromise.all( refs ).then(function ( resolvedRefs ) {
                     angular.extend( refs, resolvedRefs );
 
                     recursiveFindAndReplace( config.query || config.data, true );

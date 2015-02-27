@@ -1,7 +1,7 @@
 describe( "modelSync", function () {
     "use strict";
 
-    var $q, $httpBackend, $interval, $modelDB, db, eventEmitter, sync, model, reqProvider, req;
+    var $q, $httpBackend, $interval, $modelDB, db, sync, model, reqProvider, req;
 
     beforeEach( module( "syonet.model", function ( $modelRequestProvider, $provide ) {
         reqProvider = $modelRequestProvider;
@@ -20,10 +20,9 @@ describe( "modelSync", function () {
     beforeEach( inject(function ( $injector ) {
         testHelpers( $injector );
 
-        $q = $injector.get( "$q" );
+        $q = $injector.get( "$modelPromise" );
         $httpBackend = $injector.get( "$httpBackend" );
         $modelDB = $injector.get( "$modelDB" );
-        eventEmitter = $injector.get( "$modelEventEmitter" );
         db = $modelDB( "__updates" );
         model = $injector.get( "model" );
         sync = $injector.get( "modelSync" );
@@ -147,23 +146,23 @@ describe( "modelSync", function () {
                 id: 2,
                 foo: "barbaz"
             }];
-            req.returns( eventEmitter( $q.when( data ) ) );
+            req.returns( $q.when( data ) );
 
             return foo.create( data ).then(function () {
                 // Modify something and then update these docs
                 data[ 0 ].foo += "1";
                 data[ 1 ].foo += "1";
 
-                req.returns( eventEmitter( $q.reject({
+                req.returns( $q.reject({
                     status: 0
-                })));
+                }));
 
                 return foo.update( data );
             }).then(function () {
                 // Must be a non-zero error
-                req.returns( eventEmitter( $q.reject({
+                req.returns( $q.reject({
                     status: 500
-                })));
+                }));
 
                 return sync();
             }).then( null, sinon.spy() ).then(function () {
@@ -178,17 +177,17 @@ describe( "modelSync", function () {
 
         it( "should remove items with no previous version", function () {
             var foo = model( "foo" );
-            req.returns( eventEmitter( $q.reject({
+            req.returns( $q.reject({
                 status: 0
-            })));
+            }));
 
             return foo.create({
                 foo: "bar"
             }).then(function () {
                 // Must be a non-zero error
-                req.returns( eventEmitter( $q.reject({
+                req.returns( $q.reject({
                     status: 500
-                })));
+                }));
 
                 return sync();
             }).then( null, sinon.spy() ).then(function () {
