@@ -153,6 +153,14 @@
                 // Ensure options is an object
                 options = options || {};
 
+                // Allow bypassing the request - this will be treated as an offline response.
+                if ( options.bypass ) {
+                    return $modelPromise.reject({
+                        status: 0,
+                        data: null
+                    });
+                }
+
                 // Create the URL to ping
                 pingUrl = options.baseUrl || getPingUrl( url );
 

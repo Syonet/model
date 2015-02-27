@@ -150,6 +150,18 @@ describe( "$modelRequest", function () {
         });
     });
 
+    it( "should allow bypassing the HTTP request", function () {
+        var promise = req( "/foo", "GET", null, {
+            bypass: true
+        });
+
+        testHelpers.digest( true );
+        return expect( promise ).to.be.rejectedWith({
+            status: 0,
+            data: null
+        });
+    });
+
     // ---------------------------------------------------------------------------------------------
 
     describe( "pings", function () {
