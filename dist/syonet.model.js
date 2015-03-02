@@ -108,7 +108,7 @@
          */
         function getOne ( model ) {
             var id = model.id();
-            var promise = id ? model.db.get( id ) : model.db.allDocs({
+            var promise = id ? model.db.get( id + "" ) : model.db.allDocs({
                 include_docs: true
             }).then(function ( data ) {
                 var i, doc;
