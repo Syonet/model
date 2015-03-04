@@ -488,6 +488,18 @@ describe( "model", function () {
                         data[ 0 ].foo
                     );
                 });
+
+                it( "should remove precached element when failed", function () {
+                    var allDocs;
+                    var foo = model( "foo" );
+
+                    $httpBackend.expectPOST( "/foo" ).respond( 500, {} );
+                    foo.create( {} );
+                    testHelpers.flush();
+
+                    allDocs = foo.db.allDocs();
+                    return expect( allDocs ).to.eventually.have.property( "total_rows", 0 );
+                });
             });
         });
 
