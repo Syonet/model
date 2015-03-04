@@ -500,6 +500,17 @@ describe( "model", function () {
                     allDocs = foo.db.allDocs();
                     return expect( allDocs ).to.eventually.have.property( "total_rows", 0 );
                 });
+
+                it( "should be rejected when request failed", function () {
+                    var promise;
+                    var foo = model( "foo" );
+
+                    $httpBackend.expectPOST( "/foo" ).respond( 500, {} );
+                    promise = foo.create( {} );
+                    testHelpers.flush();
+
+                    return expect( promise ).to.be.rejected;
+                });
             });
         });
 

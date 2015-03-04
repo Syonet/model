@@ -300,7 +300,9 @@
                         return $modelCache.set( self, docs );
                     });
                 }, function ( err ) {
-                    return $modelCache.remove( self, data ).then( $modelPromise.reject( err ) );
+                    return $modelCache.remove( self, data ).then(function () {
+                        return $modelPromise.reject( err )
+                    });
                 });
             };
 
