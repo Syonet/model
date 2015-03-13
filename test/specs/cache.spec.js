@@ -141,7 +141,8 @@ describe( "$modelCache", function () {
                     _id: "foo"
                 });
             }).then(function () {
-                return expect( foo.db.allDocs() ).to.eventually.have.property( "total_rows", 1 );
+                // 1 item is the management data, never removed
+                return expect( foo.db.allDocs() ).to.eventually.have.property( "total_rows", 2 );
             });
         });
 
@@ -152,7 +153,8 @@ describe( "$modelCache", function () {
             }).then(function () {
                 return cache.remove( foo );
             }).then(function () {
-                return expect( foo.db.allDocs() ).to.eventually.have.property( "total_rows", 0 );
+                // 1 item is the management data, never removed
+                return expect( foo.db.allDocs() ).to.eventually.have.property( "total_rows", 1 );
             });
         });
     });
@@ -223,7 +225,7 @@ describe( "$modelCache", function () {
             }));
 
             return cache.compact( foo ).then(function () {
-                return expect( cache.getAll( foo ) ).to.eventually.eql( [] );
+                return expect( cache.getAll( foo ) ).to.eventually.have.length( 0 );
             });
         });
 

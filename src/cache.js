@@ -35,7 +35,9 @@
 
             return promise.then(function () {
                 // Find the current revision of each item in the data array
-                var promises = data.filter( filterProtected ).map( function ( item ) {
+                var promises;
+                data = data.filter( filterProtected );
+                promises = data.map( function ( item ) {
                     item = arr || coll ? model.id( item._id ) : model;
                     return item.rev();
                 });
@@ -88,6 +90,8 @@
 
                 return model.db.bulkDocs( data );
             }).then(function () {
+                return setTouched( model );
+            }).then(function () {
                 return arr ? data : data[ 0 ];
             });
         }
@@ -128,11 +132,21 @@
             var promise = model.db.allDocs({
                 include_docs: true
             }).then(function ( data ) {
-                return data.rows.map(function ( item ) {
+                var touched = false;
+                data = data.rows.map(function ( item ) {
                     return item.doc;
                 }).filter(function ( item ) {
-                    return checkRelations( item, model ) && filterProtected( item );
+                    var isProtected = filterProtected( item );
+
+                    // Determine if the data has been touched or not
+                    touched = !touched ? !isProtected && item.touched : touched;
+
+                    return checkRelations( item, model ) && isProtected;
                 });
+
+                // Pass the touched property into the returned data array
+                data.touched = touched;
+                return data;
             });
 
             return $modelPromise.when( promise );
@@ -189,6 +203,8 @@
 
                 return db.bulkDocs( bulkData );
             }).then(function () {
+                return setTouched( model );
+            }).then(function () {
                 return arr ? bulkData : bulkData[ 0 ];
             });
 
@@ -213,9 +229,9 @@
 
             function checkCompaction ( mgmt ) {
                 mgmt = mgmt || {
-                    _id: MANAGEMENT_DATA,
-                    lastCompactionIndex: 0
+                    _id: MANAGEMENT_DATA
                 };
+                mgmt.lastCompactionIndex = mgmt.lastCompactionIndex || 0;
 
                 return db.info().then(function ( info ) {
                     // Only compact if we are more than 1000 updates outdated.
@@ -227,6 +243,27 @@
                         });
                     }
                 });
+            }
+        }
+
+        /**
+         * Set a database as touched by $modelCache.
+         *
+         * @param   {Model} model
+         * @returns {Promise}
+         */
+        function setTouched ( model ) {
+            return model.db.get( MANAGEMENT_DATA ).then( update, function () {
+                return update();
+            });
+
+            function update ( mgmt ) {
+                mgmt = mgmt || {
+                    _id: MANAGEMENT_DATA
+                };
+                mgmt.touched = true;
+
+                return model.db.post( mgmt );
             }
         }
 

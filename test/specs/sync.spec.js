@@ -167,7 +167,8 @@ describe( "modelSync", function () {
                 return sync();
             }).then( null, sinon.spy() ).then(function () {
                 return foo.db.allDocs({
-                    include_docs: true
+                    include_docs: true,
+                    keys: [ "1", "2" ]
                 });
             }).then(function ( docs ) {
                 expect( docs.rows ).to.have.deep.property( "[0].doc.foo", "bar" );
@@ -194,7 +195,9 @@ describe( "modelSync", function () {
                 var promise = foo.db.allDocs({
                     include_docs: true
                 });
-                return expect( promise ).to.eventually.have.property( "total_rows", 0 );
+
+                // 1 item is the management data, never removed
+                return expect( promise ).to.eventually.have.property( "total_rows", 1 );
             });
         });
     });

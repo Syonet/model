@@ -207,11 +207,18 @@
                         return $modelCache.set( self, docs );
                     });
                 }, function ( err ) {
+                    var reject = $modelPromise.reject;
+
                     if ( err.status === 0 ) {
-                        return promise.$$cached;
+                        return promise.$$cached.then(function ( docs ) {
+                            // If the DB has ever been touched before, we'll return whatever has
+                            // been returned by the cache. Otherwise, we'll need to reject the
+                            // promise with the offline error.
+                            return docs.touched ? docs : reject( err );
+                        });
                     }
 
-                    return $modelPromise.reject( err );
+                    return reject( err );
                 });
             };
 

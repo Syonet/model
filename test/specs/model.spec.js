@@ -63,7 +63,10 @@ describe( "model", function () {
             promise = model( "foo" ).list();
             testHelpers.flush( true );
 
-            return expect( promise ).to.eventually.eql( [] );
+            return expect( promise ).to.be.rejectedWith({
+                status: 0,
+                data: null
+            });
         });
     });
 
@@ -563,7 +566,7 @@ describe( "model", function () {
                 return promise.then(function () {
                     return expect( foo.db.allDocs() ).to.eventually.have.property(
                         "total_rows",
-                        1
+                        2
                     );
                 });
             });
