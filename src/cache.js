@@ -139,13 +139,15 @@
                     var isProtected = filterProtected( item );
 
                     // Determine if the data has been touched or not
-                    touched = !touched ? !isProtected && item.touched : touched;
+                    if ( !isProtected && item.touched ) {
+                        touched = item.touched[ model.toURL() ];
+                    }
 
                     return checkRelations( item, model ) && isProtected;
                 });
 
                 // Pass the touched property into the returned data array
-                data.touched = touched;
+                data.touched = touched || false;
                 return data;
             });
 
@@ -261,7 +263,8 @@
                 mgmt = mgmt || {
                     _id: MANAGEMENT_DATA
                 };
-                mgmt.touched = true;
+                mgmt.touched = mgmt.touched || {};
+                mgmt.touched[ model.toURL() ] = true;
 
                 return model.db.post( mgmt );
             }

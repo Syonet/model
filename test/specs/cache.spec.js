@@ -245,6 +245,16 @@ describe( "$modelCache", function () {
                 return expect( promise ).to.eventually.have.length( 2 );
             });
         });
+
+        it( "should return proper 'touched' value for different parents", function () {
+            var baz = model( "foo" ).id( "bar" ).model( "baz" );
+            return cache.set( baz, [{
+                _id: "qux"
+            }]).then(function () {
+                var promise = cache.getAll( model( "baz" ) );
+                return expect( promise ).to.eventually.have.property( "touched", false );
+            });
+        });
     });
 
     // ---------------------------------------------------------------------------------------------
