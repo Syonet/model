@@ -72,6 +72,26 @@ describe( "model", function () {
 
     // ---------------------------------------------------------------------------------------------
 
+    describe( ".pluralizeCollections", function () {
+        it( "should append 's' to collections", function () {
+            provider.pluralizeCollections = true;
+            expect( model( "foo" ).toURL() ).to.equal( "/foos" );
+            expect( model( "foo" ).model( "bar" ).toURL() ).to.equal( "/foos/bars" );
+            expect( model( "foo" ).id( 1 ).model( "bar" ).toURL() ).to.equal( "/foo/1/bars" );
+        });
+
+        it( "should not append 's' to items", function () {
+            var foo = model( "foo" ).id( 1 );
+            var bar = foo.model( "bar" ).id( 1 );
+
+            provider.pluralizeCollections = true;
+            expect( foo.toURL() ).to.equal( "/foo/1" );
+            expect( bar.toURL() ).to.equal( "/foo/1/bar/1" );
+        });
+    });
+
+    // ---------------------------------------------------------------------------------------------
+
     describe( ".base()", function () {
         it( "should be used as the base URL for requests", function () {
             model.base( "http://foo/api" );
