@@ -10,6 +10,7 @@ Angular.js RESTful API with fallback to PouchDB when offline.
 * [Usage](#usage)
 * [Promises + Event Emitter](#promises--event-emitter)
 * [`model` service API](#model-service-api)
+* [`model` provider API](#model-provider-api)
 * [License](#license)
 
 ## Installation
@@ -229,6 +230,34 @@ model.auth( "foo", "bar" );
 model( "foo" ).list(); // GET /foo with header Authorization: Basic <...>
 
 model.auth(); // { username: "foo", password: "bar" }
+```
+
+## `model` provider API
+Access to the `modelProvider` API is given your config phase.
+
+__Usage:__
+
+```js
+angular.module(...).config(function ( modelProvider ) {
+    // Use modelProvider API in config block
+}).provider( "foo", function ( modelProvider ) {
+    // Use modelProvider API in provider
+    
+    this.$get = function () { ... };
+});
+```
+
+### `.pluralizeCollections`
+Set this value to `true` to allow the pluralization of collections in URLs.
+
+```js
+// in your config phase
+modelProvider.pluralizeCollections = true;
+
+// in your controller or service
+model( "foo" ).list() // => /foos
+model( "foo" ).id( 1 ).list() // => /foo/1
+model( "foo" ).model( "bar" ).list() // => /foos/bars
 ```
 
 ## License
