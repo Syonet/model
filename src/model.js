@@ -321,7 +321,7 @@
                     });
                 }, function ( err ) {
                     return $modelCache.remove( self, data ).then(function () {
-                        return $modelPromise.reject( err )
+                        return $modelPromise.reject( err );
                     });
                 });
             };
