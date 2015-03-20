@@ -98,6 +98,7 @@ If this method is invoked in an element, then passing the `collection` argument 
 The `query` argument is passed as query string parameters for the request.
 
 If the request fails with HTTP code `0`, then the promise is resolved with the cached value.
+If the same request has never been made before, the promise will be rejected.
 
 Example:
 
@@ -242,7 +243,7 @@ angular.module(...).config(function ( modelProvider ) {
     // Use modelProvider API in config block
 }).provider( "foo", function ( modelProvider ) {
     // Use modelProvider API in provider
-    
+
     this.$get = function () { ... };
 });
 ```
