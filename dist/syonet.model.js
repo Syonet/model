@@ -458,6 +458,13 @@
             };
         };
 
+        /**
+         * Define if collections should be pluralized by default when making the requests.
+         *
+         * @type    {Boolean}
+         */
+        provider.pluralizeCollections = false;
+
         provider.$get = function (
             $modelPromise,
             $modelConfig,
@@ -586,15 +593,21 @@
              * @returns {String}
              */
             Model.prototype.toURL = function () {
-                var id;
+                var id, name;
                 var next = this;
                 var path = "";
 
                 do {
                     id = next._path.id;
                     id = id && ( angular.isArray( id ) ? id.join( "," ) : id );
+                    name = next._path.name;
 
-                    path = "/" + next._path.name + ( id ? "/" + id : "" ) + path;
+                    // Pluralize the collection URL if needed
+                    if ( !id && provider.pluralizeCollections ) {
+                        name += "s";
+                    }
+
+                    path = "/" + name + ( id ? "/" + id : "" ) + path;
                     next = next._parent;
                 } while ( next );
                 return fixDoubleSlashes( Model.base() + path );
