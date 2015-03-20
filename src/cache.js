@@ -260,12 +260,18 @@
             });
 
             function update ( mgmt ) {
+                var url = model.toURL();
                 mgmt = mgmt || {
                     _id: MANAGEMENT_DATA
                 };
                 mgmt.touched = mgmt.touched || {};
-                mgmt.touched[ model.toURL() ] = true;
 
+                // Don't save it again if no change at all
+                if ( mgmt.touched[ url ] ) {
+                    return;
+                }
+
+                mgmt.touched[ url ] = true;
                 return model.db.post( mgmt );
             }
         }
