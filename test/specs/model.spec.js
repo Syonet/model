@@ -274,7 +274,7 @@ describe( "model", function () {
                 return expect( promise ).to.eventually.have.deep.property( "[0].foo", data.foo );
             });
 
-            it( "should wipe previous cached values on another request", function () {
+            it( "should wipe previous cached values on another request without query", function () {
                 var promise;
                 var foo = model( "foo" );
                 var data = [{
@@ -311,6 +311,41 @@ describe( "model", function () {
                     expect( promise ).to.eventually.have.deep.property( "[1].id", 3 );
 
                     return promise;
+                });
+            });
+
+            it( "should extend previous cached values on another request with query", function () {
+                var promise;
+                var foo = model( "foo" );
+                var data = [{
+                    id: 5,
+                    foo: "bar"
+                }, {
+                    id: 3,
+                    foo: "baz"
+                }];
+
+                $httpBackend.expectGET( "/foo" ).respond( data );
+                promise = foo.list();
+                testHelpers.flush();
+
+                return promise.then(function () {
+                    $httpBackend.expectGET( "/foo?foo=qux" ).respond([{
+                        id: 1,
+                        foo: "qux"
+                    }]);
+
+                    promise = foo.list({
+                        foo: "qux"
+                    });
+
+                    setTimeout( $httpBackend.flush );
+                    return promise;
+                }).then(function () {
+                    var promise = foo.db.allDocs();
+
+                    // 4 rows because 1 is management data, other 3 are returned rows
+                    return expect( promise ).to.eventually.have.property( "total_rows", 4 );
                 });
             });
 

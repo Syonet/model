@@ -212,9 +212,16 @@
                 });
 
                 return promise.then(function ( docs ) {
+                    var cachePromise;
                     promise.emit( "server", docs );
 
-                    return $modelCache.remove( self ).then(function () {
+                    if ( !query || angular.equals( query, {} ) ) {
+                        cachePromise = $modelCache.remove( self );
+                    } else {
+                        cachePromise = $modelPromise.when();
+                    }
+
+                    return cachePromise.then(function () {
                         return $modelCache.compact( self );
                     }).then(function () {
                         return $modelCache.set( self, docs );
