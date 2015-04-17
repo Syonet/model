@@ -267,12 +267,18 @@
             });
 
             function update ( mgmt ) {
+                var url = model.toURL();
                 mgmt = mgmt || {
                     _id: MANAGEMENT_DATA
                 };
                 mgmt.touched = mgmt.touched || {};
-                mgmt.touched[ model.toURL() ] = true;
 
+                // Don't save it again if no change at all
+                if ( mgmt.touched[ url ] ) {
+                    return;
+                }
+
+                mgmt.touched[ url ] = true;
                 return model.db.post( mgmt );
             }
         }
@@ -643,9 +649,16 @@
                 });
 
                 return promise.then(function ( docs ) {
+                    var cachePromise;
                     promise.emit( "server", docs );
 
-                    return $modelCache.remove( self ).then(function () {
+                    if ( !query || angular.equals( query, {} ) ) {
+                        cachePromise = $modelCache.remove( self );
+                    } else {
+                        cachePromise = $modelPromise.when();
+                    }
+
+                    return cachePromise.then(function () {
                         return $modelCache.compact( self );
                     }).then(function () {
                         return $modelCache.set( self, docs );
@@ -752,7 +765,7 @@
                     });
                 }, function ( err ) {
                     return $modelCache.remove( self, data ).then(function () {
-                        return $modelPromise.reject( err )
+                        return $modelPromise.reject( err );
                     });
                 });
             };
