@@ -10,7 +10,7 @@ module.exports = function ( config ) {
             // Production deps
             "libs/pouchdb/dist/pouchdb.js",
             "libs/angular/angular.js",
-            "libs/angular-pouchdb/dist/angular-pouchdb.js",
+            "libs/angular-pouchdb/angular-pouchdb.js",
 
             // Dev deps
             "libs/angular-mocks/angular-mocks.js",
