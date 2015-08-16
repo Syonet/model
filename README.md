@@ -93,12 +93,16 @@ model( "foo" ).id( "bar" ).toURL(); // => /foo/bar
 ```
 
 ### `.list( [collection], [query] )`
-Lists all elements from a collection, and reutrns a promise for it. Triggers a `GET` request and saves the result to the PouchDB cache.
-If this method is invoked in an element, then passing the `collection` argument is mandatory.
+Lists all elements from a collection, and reutrns a promise for it. Triggers a `GET` request and saves the result to the PouchDB cache.  
+If this method is invoked in an element, then passing the `collection` argument is mandatory.  
 The `query` argument is passed as query string parameters for the request.
 
-If the request fails with HTTP code `0`, then the promise is resolved with the cached value.
+If the request fails with HTTP code `0`, then the promise is resolved with the cached value.  
 If the same request has never been made before, the promise will be rejected.
+
+__Events__
+* `server`: fired when the server request is successful;
+* `cache`: fired when the cached is hit;
 
 Example:
 
@@ -119,6 +123,10 @@ Example:
 model( "foo" ).get( "bar" ); // GET /foo/bar
 model( "foo" ).id( "bar" ).get(); // GET /foo/bar
 ```
+
+__Events__
+* `server`: fired when the server request is successful;
+* `cache`: fired when the cached is hit;
 
 ### `.create( [collection], data )`
 Create one or more elements return a promise for it. Triggers a `POST` request and saves the result to the PouchDB cache.
@@ -144,6 +152,10 @@ model( "foo" ).create([{
 // POST /foo
 // [...]
 ```
+
+__Events__
+* `server`: fired when the server request is successful;
+* `cache`: fired when the cache is updated;
 
 ### `.update( data )`
 Update one or more elements and return a promise for it. Triggers a `POST` request and saves the result to the PouchDB cache.
@@ -172,6 +184,10 @@ model( "foo" ).update([{
 // [...]
 ```
 
+__Events__
+* `server`: fired when the server request is successful;
+* `cache`: fired when the cache is updated;
+
 ### `.patch( data )`
 Patch one or more elements and return a promise for it. Triggers a `PATCH` request and saves the result to the PouchDB cache.
 If this method is invoked in an collection, then it's mandatory to make a batch operation, using `data` as an array.
@@ -199,6 +215,10 @@ model( "foo" ).patch([{
 // [...]
 ```
 
+__Events__
+* `server`: fired when the server request is successful;
+* `cache`: fired when the cache is updated;
+
 ### `.remove()`
 Remove an element or collection and returns a promise for it. Triggers a `DELETE` request and wipes the
 corresponding elements from the PouchDB cache.
@@ -209,6 +229,10 @@ Example:
 model( "foo" ).remove(); // => DELETE /foo
 model( "foo" ).id( "bar" ).remove(); // => DELETE /foo/bar
 ```
+
+__Events__
+* `server`: fired when the server request is successful;
+* `cache`: fired when the cache is updated;
 
 ### model.base( [base] )
 Get or set the base URL for the HTTP requests.
