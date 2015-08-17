@@ -117,14 +117,22 @@
             };
 
             /**
-             * Creates a new model  with the specified `name` inheriting from this one.
+             * Creates a new model with the specified `name` inheriting from this one.
              *
              * @param   {String} name
              * @returns {Model}
              */
             Model.prototype.model = function ( name ) {
-                var other = new Model( name );
+                var other, id;
+
+                if ( name instanceof Model ) {
+                    id = name._path.id;
+                    name = name._path.name;
+                }
+
+                other = new Model( name );
                 other._parent = this;
+                other._path.id = id;
 
                 return other;
             };

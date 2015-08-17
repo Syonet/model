@@ -175,7 +175,14 @@ describe( "model", function () {
             var bar = model( "foo" ).model( "bar" );
 
             expect( bar._parent._path ).to.eql({ name: "foo" });
-            expect( bar._path ).to.eql({ name: "bar" });
+            expect( bar._path ).to.eql({ name: "bar", id: undefined });
+        });
+
+        it( "should create new model using another instance", function () {
+            var foo = model( "foo" ).id( 123 );
+            var bar = model( "bar" ).id( 456 );
+
+            expect( foo.model( bar ).toURL() ).to.eql( "/foo/123/bar/456" );
         });
     });
 
