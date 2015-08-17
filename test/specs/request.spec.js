@@ -206,4 +206,22 @@ describe( "$modelRequest", function () {
         });
     });
 
+    // ---------------------------------------------------------------------------------------------
+
+    describe( "option id", function () {
+        it( "should be used to determine the ID fields in the response body", function () {
+            var promise;
+            $httpBackend.expectGET( "/foo/bar" ).respond( 200, {
+                baz: "qux"
+            });
+
+            promise = req( "/foo/bar", "GET", null, {
+                id: "baz"
+            });
+
+            expect( promise ).to.eventually.have.property( "_id", "qux" );
+            testHelpers.flush();
+        });
+    });
+
 });
