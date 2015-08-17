@@ -42,33 +42,6 @@
             $modelCache,
             modelSync
         ) {
-            /**
-             * @param   {Model} model
-             * @param   {String} method
-             * @param   {*} [data]
-             * @param   {Object} [options]
-             * @returns {Promise}
-             */
-            function createRequest ( model, method, data, options ) {
-                var req;
-                var url = model.toURL();
-
-                options = angular.extend( {}, options, {
-                    auth: provider.auth(),
-                    baseUrl: Model.base()
-                });
-                req = $modelRequest( url, method, data, options );
-
-                return req.then( null, function ( err ) {
-                    if ( !$modelRequest.isSafe( method ) && err.status === 0 ) {
-                        return modelSync.store( model, method, data, options ).then(function () {
-                            return SKIP_RESPONSE;
-                        });
-                    }
-
-                    return $modelPromise.reject( err );
-                });
-            }
 
             /**
              * @param   {String} name
@@ -92,6 +65,34 @@
                     name: name
                 };
             }
+
+            /**
+             * @param   {String} method
+             * @param   {*} [data]
+             * @param   {Object} [options]
+             * @returns {Promise}
+             */
+            Model.prototype._request = function ( method, data, options ) {
+                var req;
+                var model = this;
+                var url = model.toURL();
+
+                options = angular.extend( {}, options, {
+                    auth: provider.auth(),
+                    baseUrl: Model.base()
+                });
+                req = $modelRequest( url, method, data, options );
+
+                return req.then( null, function ( err ) {
+                    if ( !$modelRequest.isSafe( method ) && err.status === 0 ) {
+                        return modelSync.store( model, method, data, options ).then(function () {
+                            return SKIP_RESPONSE;
+                        });
+                    }
+
+                    return $modelPromise.reject( err );
+                });
+            };
 
             /**
              * Get/set the ID of the current collection/element.
@@ -213,7 +214,7 @@
                     query = collection;
                 }
 
-                promise = createRequest( self, "GET", query, options );
+                promise = self._request( "GET", query, options );
                 promise.$$cached = $modelCache.getAll( self ).then(function ( docs ) {
                     promise.emit( "cache", docs );
                     return docs;
@@ -271,7 +272,7 @@
                     options = id;
                 }
 
-                promise = createRequest( self, "GET", null, options );
+                promise = self._request( "GET", null, options );
                 promise.$$cached = $modelCache.getOne( self ).then(function ( doc ) {
                     promise.emit( "cache", doc );
                     return doc;
@@ -315,7 +316,7 @@
                     data = collection;
                 }
 
-                promise = createRequest( self, "POST", data, options );
+                promise = self._request( "POST", data, options );
                 promise.$$cached = $modelCache.set( self, data ).then(function ( docs ) {
                     promise.emit( "cache", docs );
                     return docs;
@@ -370,7 +371,7 @@
              */
             Model.prototype.remove = function ( options ) {
                 var self = this;
-                var promise = createRequest( self, "DELETE", null, options );
+                var promise = self._request( "DELETE", null, options );
 
                 // Find the needed docs and remove then from cache right away
                 promise.$$cached = $modelCache[ self.id() ? "getOne" : "getAll" ]( self );
@@ -469,7 +470,7 @@
                         data._id = self.id();
                     }
 
-                    promise = createRequest( self, method, data, options );
+                    promise = self._request( method, data, options );
                     return promise.then(function ( docs ) {
                         if ( docs === SKIP_RESPONSE ) {
                             return $modelCache[ cacheFn ]( self, data ).then(function ( docs ) {
