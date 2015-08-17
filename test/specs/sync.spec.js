@@ -1,10 +1,10 @@
 describe( "modelSync", function () {
     "use strict";
 
-    var $q, $httpBackend, $interval, $modelDB, db, sync, model, reqProvider, req;
+    var $q, $httpBackend, $interval, $modelDB, db, sync, model, pingProvider, req;
 
-    beforeEach( module( "syonet.model", function ( $modelRequestProvider, $provide ) {
-        reqProvider = $modelRequestProvider;
+    beforeEach( module( "syonet.model", function ( $modelPingProvider, $provide ) {
+        pingProvider = $modelPingProvider;
 
         $provide.decorator( "$modelRequest", function ( $delegate, $q ) {
             req = sinon.stub().returns( $q.when( true ) );
@@ -207,7 +207,7 @@ describe( "modelSync", function () {
     describe( ".schedule( delay )", function () {
         it( "should use ping delay as the minimum delay between calls", function () {
             sync.schedule( 30 );
-            expect( $interval ).to.have.been.calledWith( sync, reqProvider.pingDelay );
+            expect( $interval ).to.have.been.calledWith( sync, pingProvider.pingDelay );
         });
 
         it( "should cancel the other schedule", function () {
