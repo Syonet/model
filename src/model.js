@@ -134,6 +134,7 @@
 
                 if ( name instanceof Model ) {
                     id = name._path.id;
+                    options = options || name._options;
                     name = name._path.name;
                 }
 

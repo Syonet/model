@@ -184,6 +184,18 @@ describe( "model", function () {
 
             expect( foo.model( bar ).toURL() ).to.eql( "/foo/123/bar/456" );
         });
+
+        it( "should pass new options", function () {
+            var opts = {};
+            var foo = model( "foo", {
+                bar: "baz"
+            });
+            var bar = model( "bar", opts );
+
+            expect( foo.model( "bar" ) ).to.not.have.property( "_options" );
+            expect( foo.model( "bar", opts ) ).to.have.property( "_options", opts );
+            expect( foo.model( bar ) ).to.have.property( "_options", opts );
+        });
     });
 
     // ---------------------------------------------------------------------------------------------
