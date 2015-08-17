@@ -206,24 +206,4 @@ describe( "$modelRequest", function () {
         });
     });
 
-    // ---------------------------------------------------------------------------------------------
-
-    describe( ".idFieldHeader", function () {
-        it( "should be used to determine the ID fields in the response headers", function () {
-            var promise;
-
-            provider.idFieldHeader = "X-Id";
-
-            $httpBackend.expectGET( "/foo/bar" ).respond( 200, {
-                baz: "qux"
-            }, {
-                "X-Id": "baz"
-            });
-            promise = req( "/foo/bar", "GET" );
-            expect( promise ).to.eventually.have.property( "_id", "qux" );
-
-            testHelpers.flush();
-        });
-    });
-
 });

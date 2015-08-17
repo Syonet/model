@@ -45,12 +45,16 @@
 
             /**
              * @param   {String} name
+             * @param   {Object} [options]
+             * @param   {String|String[]} [options.id="id"]  List of fields to take from the XHR
+             *                                               response and adopt as the primary key
+             *                                               of the returned array/object.
              * @returns {Model}
              * @constructor
              */
-            function Model ( name ) {
+            function Model ( name, options ) {
                 if ( !( this instanceof Model ) ) {
-                    return new Model( name );
+                    return new Model( name, options );
                 }
 
                 if ( !name ) {
@@ -61,6 +65,7 @@
                     return $modelDB( name );
                 });
 
+                this._options = options;
                 this._path = {
                     name: name
                 };
@@ -77,7 +82,7 @@
                 var model = this;
                 var url = model.toURL();
 
-                options = angular.extend( {}, options, {
+                options = angular.extend( {}, options, model._options, {
                     auth: provider.auth(),
                     baseUrl: Model.base()
                 });
@@ -110,7 +115,7 @@
                     return this._path.id;
                 }
 
-                other = new Model( this._path.name );
+                other = new Model( this._path.name, this._options );
                 other._parent = this._parent;
                 other._path.id = id;
 
@@ -121,9 +126,10 @@
              * Creates a new model with the specified `name` inheriting from this one.
              *
              * @param   {String} name
+             * @param   {Object} [options]  Model options. See {@link Model} for further info.
              * @returns {Model}
              */
-            Model.prototype.model = function ( name ) {
+            Model.prototype.model = function ( name, options ) {
                 var other, id;
 
                 if ( name instanceof Model ) {
@@ -131,7 +137,7 @@
                     name = name._path.name;
                 }
 
-                other = new Model( name );
+                other = new Model( name, options );
                 other._parent = this;
                 other._path.id = id;
 

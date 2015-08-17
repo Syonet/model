@@ -15,12 +15,6 @@
          */
         provider.altContentLengthHeader = "X-Content-Length";
 
-        /**
-         * The name of the header that contains the ID fields in the response body.
-         * @type    {String}
-         */
-        provider.idFieldHeader = "X-Id-Field";
-
         provider.$get = function ( $http, $window, $modelPromise, $modelTemp, $modelPing ) {
             /**
              * Return a URL suitable for the ping request.
@@ -132,7 +126,7 @@
                 return updateTempRefs( config ).then(function ( config ) {
                     return $http( config ).then(function ( response ) {
                         var promise;
-                        response = applyIdField( response );
+                        response = applyIdField( response, options.id );
                         promise = $modelPromise.when( response );
 
                         // Set an persisted ID to the temporary ID posted
@@ -224,16 +218,16 @@
          * Applies the ID field into a HTTP response.
          *
          * @param   {Object} response
+         * @param   {String|String[]} [idFields]
          * @returns {Object|Object[]}
          */
-        function applyIdField ( response ) {
-            var idFields = response.headers( provider.idFieldHeader ) || "id";
+        function applyIdField ( response, idFields ) {
             var data = response.data;
             var isArray = angular.isArray( data );
+
+            idFields = idFields || "id";
+            idFields = angular.isArray( idFields ) ? idFields : [ idFields ];
             data = isArray ? data : [ data ];
-            idFields = idFields.split( "," ).map(function ( field ) {
-                return field.trim();
-            });
 
             data.forEach(function ( item ) {
                 var id = [];
