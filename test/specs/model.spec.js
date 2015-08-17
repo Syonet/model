@@ -59,6 +59,7 @@ describe( "model", function () {
         return promise.then(function () {
             return model.base( "/api" );
         }).then(function () {
+            $httpBackend.expectHEAD( "/api" ).respond( 200 );
             $httpBackend.expectGET( "/api/foo" ).respond( 0, null );
             promise = model( "foo" ).list();
             testHelpers.flush( true );

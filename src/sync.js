@@ -3,7 +3,7 @@
 
     angular.module( "syonet.model" ).provider( "modelSync", modelSyncProvider );
 
-    function modelSyncProvider ( $modelRequestProvider ) {
+    function modelSyncProvider ( $modelPingProvider ) {
         var provider = this;
 
         provider.$get = function ( $interval, $document, $modelRequest, $modelDB, $modelPromise ) {
@@ -154,7 +154,7 @@
              *                           used is the ping delay.
              */
             sync.schedule = function ( delay ) {
-                delay = Math.max( delay || $modelRequestProvider.pingDelay );
+                delay = Math.max( delay || $modelPingProvider.pingDelay );
 
                 sync.schedule.cancel();
                 sync.$$schedule = $interval( sync, delay );
