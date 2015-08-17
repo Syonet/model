@@ -77,8 +77,9 @@ var user = model( "user" ).id( 100 );
 console.log( user.id() ); // prints 100
 ```
 
-### `.model( name )`
-Create a new child model for the specified `name` collection and return it.
+### `.model( model )`
+Create a new child model and return it.  
+If `model` is another instance, then the paths will be combined. Otherwise, a model for the given collection will be created.
 
 ### `.rev()`
 Return a promise for the current revision of the element, or `null` if no revision is found.
