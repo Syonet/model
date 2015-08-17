@@ -72,4 +72,14 @@ describe( "$modelPing", function () {
         expect( $http ).to.have.callCount( 2 );
         testHelpers.flush();
     });
+
+    it( "should execute request before delay if URLs are different", function () {
+        $httpBackend.whenHEAD( "/foo" ).respond( 200 );
+
+        ping( "/" );
+        ping( "/foo" );
+
+        expect( $http ).to.have.callCount( 2 );
+        testHelpers.flush();
+    });
 });
