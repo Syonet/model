@@ -208,20 +208,18 @@ describe( "$modelRequest", function () {
 
     // ---------------------------------------------------------------------------------------------
 
-    describe( ".idFieldHeader", function () {
-        it( "should be used to determine the ID fields in the response headers", function () {
+    describe( "option id", function () {
+        it( "should be used to determine the ID fields in the response body", function () {
             var promise;
-
-            provider.idFieldHeader = "X-Id";
-
             $httpBackend.expectGET( "/foo/bar" ).respond( 200, {
                 baz: "qux"
-            }, {
-                "X-Id": "baz"
             });
-            promise = req( "/foo/bar", "GET" );
-            expect( promise ).to.eventually.have.property( "_id", "qux" );
 
+            promise = req( "/foo/bar", "GET", null, {
+                id: "baz"
+            });
+
+            expect( promise ).to.eventually.have.property( "_id", "qux" );
             testHelpers.flush();
         });
     });

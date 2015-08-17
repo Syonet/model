@@ -42,18 +42,47 @@
             $modelCache,
             modelSync
         ) {
+
             /**
-             * @param   {Model} model
+             * @param   {String} name
+             * @param   {Object} [options]
+             * @param   {String|String[]} [options.id="id"]  List of fields to take from the XHR
+             *                                               response and adopt as the primary key
+             *                                               of the returned array/object.
+             * @returns {Model}
+             * @constructor
+             */
+            function Model ( name, options ) {
+                if ( !( this instanceof Model ) ) {
+                    return new Model( name, options );
+                }
+
+                if ( !name ) {
+                    throw new Error( "Model name must be supplied" );
+                }
+
+                this.__defineGetter__( "db", function () {
+                    return $modelDB( name );
+                });
+
+                this._options = options;
+                this._path = {
+                    name: name
+                };
+            }
+
+            /**
              * @param   {String} method
              * @param   {*} [data]
              * @param   {Object} [options]
              * @returns {Promise}
              */
-            function createRequest ( model, method, data, options ) {
+            Model.prototype._request = function ( method, data, options ) {
                 var req;
+                var model = this;
                 var url = model.toURL();
 
-                options = angular.extend( {}, options, {
+                options = angular.extend( {}, options, model._options, {
                     auth: provider.auth(),
                     baseUrl: Model.base()
                 });
@@ -68,30 +97,7 @@
 
                     return $modelPromise.reject( err );
                 });
-            }
-
-            /**
-             * @param   {String} name
-             * @returns {Model}
-             * @constructor
-             */
-            function Model ( name ) {
-                if ( !( this instanceof Model ) ) {
-                    return new Model( name );
-                }
-
-                if ( !name ) {
-                    throw new Error( "Model name must be supplied" );
-                }
-
-                this.__defineGetter__( "db", function () {
-                    return $modelDB( name );
-                });
-
-                this._path = {
-                    name: name
-                };
-            }
+            };
 
             /**
              * Get/set the ID of the current collection/element.
@@ -109,7 +115,7 @@
                     return this._path.id;
                 }
 
-                other = new Model( this._path.name );
+                other = new Model( this._path.name, this._options );
                 other._parent = this._parent;
                 other._path.id = id;
 
@@ -120,17 +126,19 @@
              * Creates a new model with the specified `name` inheriting from this one.
              *
              * @param   {String} name
+             * @param   {Object} [options]  Model options. See {@link Model} for further info.
              * @returns {Model}
              */
-            Model.prototype.model = function ( name ) {
+            Model.prototype.model = function ( name, options ) {
                 var other, id;
 
                 if ( name instanceof Model ) {
                     id = name._path.id;
+                    options = options || name._options;
                     name = name._path.name;
                 }
 
-                other = new Model( name );
+                other = new Model( name, options );
                 other._parent = this;
                 other._path.id = id;
 
@@ -213,7 +221,7 @@
                     query = collection;
                 }
 
-                promise = createRequest( self, "GET", query, options );
+                promise = self._request( "GET", query, options );
                 promise.$$cached = $modelCache.getAll( self ).then(function ( docs ) {
                     promise.emit( "cache", docs );
                     return docs;
@@ -271,7 +279,7 @@
                     options = id;
                 }
 
-                promise = createRequest( self, "GET", null, options );
+                promise = self._request( "GET", null, options );
                 promise.$$cached = $modelCache.getOne( self ).then(function ( doc ) {
                     promise.emit( "cache", doc );
                     return doc;
@@ -315,7 +323,7 @@
                     data = collection;
                 }
 
-                promise = createRequest( self, "POST", data, options );
+                promise = self._request( "POST", data, options );
                 promise.$$cached = $modelCache.set( self, data ).then(function ( docs ) {
                     promise.emit( "cache", docs );
                     return docs;
@@ -370,7 +378,7 @@
              */
             Model.prototype.remove = function ( options ) {
                 var self = this;
-                var promise = createRequest( self, "DELETE", null, options );
+                var promise = self._request( "DELETE", null, options );
 
                 // Find the needed docs and remove then from cache right away
                 promise.$$cached = $modelCache[ self.id() ? "getOne" : "getAll" ]( self );
@@ -469,7 +477,7 @@
                         data._id = self.id();
                     }
 
-                    promise = createRequest( self, method, data, options );
+                    promise = self._request( method, data, options );
                     return promise.then(function ( docs ) {
                         if ( docs === SKIP_RESPONSE ) {
                             return $modelCache[ cacheFn ]( self, data ).then(function ( docs ) {

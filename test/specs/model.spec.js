@@ -4,8 +4,12 @@ describe( "model", function () {
     var injector, $rootScope, $httpBackend, $modelDB, provider, model;
     var expect = chai.expect;
 
-    beforeEach( module( "syonet.model", function ( modelProvider ) {
+    beforeEach( module( "syonet.model", function ( $provide, modelProvider ) {
         provider = modelProvider;
+
+        $provide.decorator( "$modelRequest", function ( $delegate ) {
+            return sinon.spy( $delegate );
+        });
     }));
 
     beforeEach( inject(function ( $injector ) {
@@ -183,6 +187,18 @@ describe( "model", function () {
             var bar = model( "bar" ).id( 456 );
 
             expect( foo.model( bar ).toURL() ).to.eql( "/foo/123/bar/456" );
+        });
+
+        it( "should pass new options", function () {
+            var opts = {};
+            var foo = model( "foo", {
+                bar: "baz"
+            });
+            var bar = model( "bar", opts );
+
+            expect( foo.model( "bar" ) ).to.not.have.property( "_options" );
+            expect( foo.model( "bar", opts ) ).to.have.property( "_options", opts );
+            expect( foo.model( bar ) ).to.have.property( "_options", opts );
         });
     });
 
@@ -985,6 +1001,29 @@ describe( "model", function () {
                     promise = foo.db.get( "bar" );
                     return expect( promise ).to.be.rejected;
                 });
+            });
+        });
+    });
+
+    // ---------------------------------------------------------------------------------------------
+
+    describe( "._request()", function () {
+        var req;
+        beforeEach( inject( function ( $modelRequest ) {
+            req = $modelRequest;
+        }));
+
+        it( "should pass instance options to $modelRequest", function () {
+            var foo = model( "foo", {
+                bar: "baz"
+            });
+
+            $httpBackend.expectGET( "/foo" ).respond({});
+            foo.list();
+            testHelpers.flush();
+
+            expect( req ).to.have.been.calledWithMatch( "/foo", "GET", undefined, {
+                bar: "baz"
             });
         });
     });
