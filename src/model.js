@@ -212,7 +212,7 @@
              * @returns {Promise}
              */
             Model.prototype.list = function ( collection, query, options ) {
-                var promise;
+                var promise, cachePromise, reqPromise;
                 var self = this;
 
                 self = invokeInCollection( self, collection, "list" );
@@ -221,41 +221,33 @@
                     query = collection;
                 }
 
-                promise = self._request( "GET", query, options );
-                promise.$$cached = $modelCache.getAll( self ).then(function ( docs ) {
+                cachePromise = $modelCache.getAll( self ).then(function ( docs ) {
                     promise.emit( "cache", docs );
-                    return docs;
+
+                    // If the DB has ever been touched before, we'll return that value.
+                    // Otherwise, let's just make this promise eternal, so the request has a chance
+                    // to finish.
+                    return docs.touched ? docs : eternalPromise();
                 });
 
-                return promise.then(function ( docs ) {
-                    var cachePromise;
+                reqPromise = self._request( "GET", query, options ).then(function ( docs ) {
+                    var cache;
                     promise.emit( "server", docs );
 
                     if ( !query || angular.equals( query, {} ) ) {
-                        cachePromise = $modelCache.remove( self );
+                        cache = $modelCache.remove( self );
                     } else {
-                        cachePromise = $modelPromise.when();
+                        cache = $modelPromise.when();
                     }
 
-                    return cachePromise.then(function () {
+                    return cache.then(function () {
                         return $modelCache.compact( self );
                     }).then(function () {
                         return $modelCache.set( self, docs );
                     });
-                }, function ( err ) {
-                    var reject = $modelPromise.reject;
-
-                    if ( err.status === 0 ) {
-                        return promise.$$cached.then(function ( docs ) {
-                            // If the DB has ever been touched before, we'll return whatever has
-                            // been returned by the cache. Otherwise, we'll need to reject the
-                            // promise with the offline error.
-                            return docs.touched ? docs : reject( err );
-                        });
-                    }
-
-                    return reject( err );
                 });
+
+                return promise = $modelPromise.race([ reqPromise, cachePromise ]);
             };
 
             /**
@@ -270,7 +262,7 @@
              * @returns {Promise}
              */
             Model.prototype.get = function ( id, options ) {
-                var promise;
+                var promise, reqPromise, cachePromise;
                 var self = this;
 
                 if ( !this.id() ) {
@@ -279,28 +271,25 @@
                     options = id;
                 }
 
-                promise = self._request( "GET", null, options );
-                promise.$$cached = $modelCache.getOne( self ).then(function ( doc ) {
+                cachePromise = $modelCache.getOne( self ).then(function ( doc ) {
                     promise.emit( "cache", doc );
                     return doc;
+                }, function () {
+                    // As the document was not found, let's make this promise eternal, so the
+                    // request has a chance to finish.
+                    return eternalPromise();
                 });
 
-                return promise.then(function ( doc ) {
+                reqPromise = self._request( "GET", null, options ).then(function ( doc ) {
                     // Use the ID from the model instead of the ID from PouchDB if we have one.
                     // This allows us to have a sane ID management.
                     doc._id = self.id() || doc._id;
 
                     promise.emit( "server", doc );
                     return $modelCache.set( self, doc );
-                }, function ( err ) {
-                    if ( err.status === 0 ) {
-                        return promise.$$cached.then( null, function ( e ) {
-                            return $modelPromise.reject( !e || e.name === "not_found" ? err : e );
-                        });
-                    }
-
-                    return $modelPromise.reject( err );
                 });
+
+                return promise = $modelPromise.race([ reqPromise, cachePromise ]);
             };
 
             /**
@@ -524,6 +513,16 @@
                 }
 
                 return self;
+            }
+
+            /**
+             * Returns a promise that's never resolved.
+             * Useful for disallowing cache promises to resolve in .get() and .list() methods
+             *
+             * @returns {Promise}
+             */
+            function eternalPromise () {
+                return $modelPromise.defer().promise;
             }
         };
 
