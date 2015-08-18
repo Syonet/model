@@ -68,6 +68,34 @@
             return deferred;
         };
 
+        /**
+         * Implementation of Promise.race().
+         *
+         * @see     https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/race
+         * @param   {Array} promises    List of values to either resolve/reject.
+         * @returns {Promise}
+         */
+        modelPromise.race = function ( promises ) {
+            var flag;
+            var deferred = modelPromise.defer();
+
+            promises.forEach(function ( promise ) {
+                modelPromise.when( promise ).then( resolve, reject );
+            });
+
+            return deferred.promise;
+
+            function resolve () {
+                !flag && deferred.resolve.apply( deferred, arguments );
+                flag = true;
+            }
+
+            function reject () {
+                !flag && deferred.reject.apply( deferred, arguments );
+                flag = true;
+            }
+        };
+
         [ "when", "reject", "all" ].forEach( function ( method ) {
             modelPromise[ method ] = function ( value ) {
                 return makeEmitter( $q[ method ]( value ) );
