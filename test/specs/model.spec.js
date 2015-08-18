@@ -374,7 +374,7 @@ describe( "model", function () {
                         foo: "qux"
                     });
 
-                    setTimeout( $httpBackend.flush );
+                    testHelpers.flush( true );
                     return promise;
                 }).then(function () {
                     var promise = foo.db.allDocs();
