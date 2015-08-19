@@ -300,6 +300,17 @@ describe( "model", function () {
         // -----------------------------------------------------------------------------------------
 
         describe( "if request is successful", function () {
+            var $modelCache;
+
+            beforeEach(function () {
+                var $modelPromise = injector.get( "$modelPromise" );
+                $modelCache = injector.get( "$modelCache" );
+
+                // Cache getAll, which is used internally by .list(), to let the request finish
+                // first
+                sinon.stub( $modelCache, "getAll" ).returns( $modelPromise.defer().promise );
+            });
+
             it( "should wipe previous cached values on another request without query", function () {
                 var promise;
                 var foo = model( "foo" );
@@ -327,18 +338,12 @@ describe( "model", function () {
                     testHelpers.flush( true );
                     return promise;
                 }).then(function () {
-                    // Third request will fail, so the cache should be equal to the response of the
-                    // second request
-                    $httpBackend.expectGET( "/foo" ).respond( 0, null );
-                    promise = foo.list();
-                    testHelpers.digest( true );
-
-                    expect( promise ).to.eventually.have.deep.property( "[0].id", 2 );
-                    expect( promise ).to.eventually.have.deep.property( "[1].id", 3 );
-
-                    return promise;
-                }).then(function () {
-                    testHelpers.flush( true );
+                    $modelCache.getAll.restore();
+                    return $modelCache.getAll( foo );
+                }).then(function ( result ) {
+                    expect( result ).to.have.length( 2 );
+                    expect( result ).to.have.deep.property( "[0].id", 2 );
+                    expect( result ).to.have.deep.property( "[1].id", 3 );
                 });
             });
 
@@ -358,13 +363,6 @@ describe( "model", function () {
                 testHelpers.flush();
 
                 return promise.then(function () {
-                    var $modelCache = injector.get( "$modelCache" );
-                    var $modelPromise = injector.get( "$modelPromise" );
-
-                    // Cache getAll, which is used internally by .list(), to let the request finish
-                    // first
-                    sinon.stub( $modelCache, "getAll" ).returns( $modelPromise.defer().promise );
-
                     $httpBackend.expectGET( "/foo?foo=qux" ).respond([{
                         id: 1,
                         foo: "qux"
@@ -387,7 +385,6 @@ describe( "model", function () {
             it( "should compact DB", function () {
                 var promise;
                 var foo = model( "foo" );
-                var $modelCache = injector.get( "$modelCache" );
                 var spy = sinon.spy( $modelCache, "compact" );
 
                 $httpBackend.expectGET( "/foo" ).respond( [] );
