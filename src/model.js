@@ -34,6 +34,22 @@
          */
         provider.pluralizeCollections = false;
 
+        /**
+         * Mapping of Model methods to HTTP method.
+         * The configured values here will be used by their corresponding Model methods when
+         * triggering the HTTP requests.
+         *
+         * @type    {Object}
+         */
+        provider.methods = {
+            get:    "GET",
+            list:   "GET",
+            create: "POST",
+            update: "POST",
+            patch:  "PATCH",
+            remove: "DELETE"
+        };
+
         provider.$get = function (
             $modelPromise,
             $modelConfig,
@@ -230,7 +246,11 @@
                     return docs.touched ? docs : eternalPromise();
                 });
 
-                reqPromise = self._request( "GET", query, options ).then(function ( docs ) {
+                reqPromise = self._request(
+                    provider.methods.list,
+                    query,
+                    options
+                ).then(function ( docs ) {
                     var cache;
                     promise.emit( "server", docs );
 
@@ -280,7 +300,11 @@
                     return eternalPromise();
                 });
 
-                reqPromise = self._request( "GET", null, options ).then(function ( doc ) {
+                reqPromise = self._request(
+                    provider.methods.get,
+                    null,
+                    options
+                ).then(function ( doc ) {
                     // Use the ID from the model instead of the ID from PouchDB if we have one.
                     // This allows us to have a sane ID management.
                     doc._id = self.id() || doc._id;
@@ -312,7 +336,7 @@
                     data = collection;
                 }
 
-                promise = self._request( "POST", data, options );
+                promise = self._request( provider.methods.create, data, options );
                 promise.$$cached = $modelCache.set( self, data ).then(function ( docs ) {
                     promise.emit( "cache", docs );
                     return docs;
@@ -346,7 +370,7 @@
              * @param   {Object} [options]
              * @returns {Promise}
              */
-            Model.prototype.update = createUpdateFn( "set", "POST" );
+            Model.prototype.update = createUpdateFn( "set", provider.methods.update );
 
             /**
              * Updates the current collection/element.
@@ -356,7 +380,7 @@
              * @param   {Object} [options]
              * @returns {Promise}
              */
-            Model.prototype.patch = createUpdateFn( "extend", "PATCH" );
+            Model.prototype.patch = createUpdateFn( "extend", provider.methods.patch );
 
             /**
              * Removes the current collection/element.
@@ -367,7 +391,7 @@
              */
             Model.prototype.remove = function ( options ) {
                 var self = this;
-                var promise = self._request( "DELETE", null, options );
+                var promise = self._request( provider.methods.remove, null, options );
 
                 // Find the needed docs and remove then from cache right away
                 promise.$$cached = $modelCache[ self.id() ? "getOne" : "getAll" ]( self );
