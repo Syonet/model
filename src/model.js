@@ -370,7 +370,7 @@
              * @param   {Object} [options]
              * @returns {Promise}
              */
-            Model.prototype.update = createUpdateFn( "set", provider.methods.update );
+            Model.prototype.update = createUpdateFn( "set", "update" );
 
             /**
              * Updates the current collection/element.
@@ -380,7 +380,7 @@
              * @param   {Object} [options]
              * @returns {Promise}
              */
-            Model.prototype.patch = createUpdateFn( "extend", provider.methods.patch );
+            Model.prototype.patch = createUpdateFn( "extend", "patch" );
 
             /**
              * Removes the current collection/element.
@@ -450,7 +450,7 @@
              * Create and return a request function suitable for update/patch offline logic.
              *
              * @param   {String} cacheFn    The cache function to use. One of extend or set.
-             * @param   {String} method     The HTTP method to use. One of POST or PATCH.
+             * @param   {String} method     The method configuration to use.
              * @returns {Function}
              */
             function createUpdateFn ( cacheFn, method ) {
@@ -490,7 +490,7 @@
                         data._id = self.id();
                     }
 
-                    promise = self._request( method, data, options );
+                    promise = self._request( provider.methods[ method ], data, options );
                     return promise.then(function ( docs ) {
                         if ( docs === SKIP_RESPONSE ) {
                             return $modelCache[ cacheFn ]( self, data ).then(function ( docs ) {
