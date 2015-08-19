@@ -20,6 +20,7 @@
     },
     "license": "MIT",
     "scripts": {
-        "test": "gulp"
+        "test": "gulp",
+        "version": "git add -A dist"
     }
 }
