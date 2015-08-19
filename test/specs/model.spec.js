@@ -4,6 +4,23 @@ describe( "model", function () {
     var injector, $rootScope, $httpBackend, $modelDB, provider, model;
     var expect = chai.expect;
 
+    function shouldCustomizeRequestMethod ( method ) {
+        it( "should allow customizing", function () {
+            // Detects whether the passed method is collection-only
+            var isCollection = [ "create", "list" ].indexOf( method ) > -1;
+            provider.methods[ method ] = "FOO";
+
+            $httpBackend.expect( "FOO", "/foo/1" + ( isCollection ? "/bar" : "" ) ).respond({
+                id: 1
+            });
+
+            model( "foo" ).id( 1 )[ method ]( isCollection ? "bar" : {}, {} );
+            testHelpers.flush();
+        });
+    }
+
+    // ---------------------------------------------------------------------------------------------
+
     beforeEach( module( "syonet.model", function ( $provide, modelProvider ) {
         provider = modelProvider;
 
@@ -265,6 +282,8 @@ describe( "model", function () {
     // ---------------------------------------------------------------------------------------------
 
     describe( ".list()", function () {
+        shouldCustomizeRequestMethod( "list" );
+
         it( "should do GET request", function () {
             var promise;
             var data = [{
@@ -456,6 +475,8 @@ describe( "model", function () {
     // ---------------------------------------------------------------------------------------------
 
     describe( ".get()", function () {
+        shouldCustomizeRequestMethod( "get" );
+
         describe( "on a collection", function () {
             it( "should use ID only if it's passed", function () {
                 $httpBackend.expectGET( "/foo/bar" ).respond( {} );
@@ -520,6 +541,8 @@ describe( "model", function () {
     // ---------------------------------------------------------------------------------------------
 
     describe( ".create()", function () {
+        shouldCustomizeRequestMethod( "create" );
+
         describe( "when online", function () {
             describe( "on a collection", function () {
                 it( "should do POST request and return response", function () {
@@ -635,6 +658,8 @@ describe( "model", function () {
     // ---------------------------------------------------------------------------------------------
 
     describe( ".update()", function () {
+        shouldCustomizeRequestMethod( "update" );
+
         describe( "when online", function () {
             describe( "on an element", function () {
                 it( "should do POST request and return response", function () {
@@ -643,7 +668,7 @@ describe( "model", function () {
                         foo: "bar"
                     };
 
-                    $httpBackend.expectPOST( "/foo/bar" ).respond( data );
+                    $httpBackend.expectPUT( "/foo/bar" ).respond( data );
                     promise = model( "foo" ).id( "bar" ).update( data );
                     testHelpers.flush();
 
@@ -658,14 +683,14 @@ describe( "model", function () {
                         foo: "bar"
                     };
 
-                    $httpBackend.expectPOST( "/foo/bar" ).respond( data );
+                    $httpBackend.expectPUT( "/foo/bar" ).respond( data );
                     promise = foobar.update( data );
                     testHelpers.flush();
 
                     return promise.then(function () {
                         data.foo = "barbaz";
 
-                        $httpBackend.expectPOST( "/foo/bar" ).respond( data );
+                        $httpBackend.expectPUT( "/foo/bar" ).respond( data );
                         promise = foobar.update( data );
                         testHelpers.flush( true );
 
@@ -708,7 +733,7 @@ describe( "model", function () {
                 var foo = model( "foo" );
 
                 // Use status 0, so we're allowed to not give a **ck about the HTTP response :)
-                $httpBackend.expectPOST( "/foo" ).respond( 0 );
+                $httpBackend.expectPUT( "/foo" ).respond( 0 );
                 promise = foo.update( [{
                     foo: "foo",
                     bar: "bar"
@@ -735,6 +760,8 @@ describe( "model", function () {
     // ---------------------------------------------------------------------------------------------
 
     describe( ".patch()", function () {
+        shouldCustomizeRequestMethod( "patch" );
+
         describe( "when online", function () {
             it( "should do PATCH request and return response", function () {
                 var promise;
@@ -888,6 +915,8 @@ describe( "model", function () {
     // ---------------------------------------------------------------------------------------------
 
     describe( ".remove()", function () {
+        shouldCustomizeRequestMethod( "remove" );
+
         describe( "when online", function () {
             it( "should do DELETE request and return response", function () {
                 var promise;
@@ -903,7 +932,7 @@ describe( "model", function () {
                 var promise;
                 var foobar = model( "foo" ).id( "bar" );
 
-                $httpBackend.expectPOST( "/foo/bar" ).respond({
+                $httpBackend.expectPUT( "/foo/bar" ).respond({
                     id: "bar",
                     foo: "bar"
                 });
