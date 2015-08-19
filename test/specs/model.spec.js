@@ -4,6 +4,23 @@ describe( "model", function () {
     var injector, $rootScope, $httpBackend, $modelDB, provider, model;
     var expect = chai.expect;
 
+    function shouldCustomizeRequestMethod ( method ) {
+        it( "should allow customizing", function () {
+            // Detects whether the passed method is collection-only
+            var isCollection = [ "create", "list" ].indexOf( method ) > -1;
+            provider.methods[ method ] = "FOO";
+
+            $httpBackend.expect( "FOO", "/foo/1" + ( isCollection ? "/bar" : "" ) ).respond({
+                id: 1
+            });
+
+            model( "foo" ).id( 1 )[ method ]( isCollection ? "bar" : {}, {} );
+            testHelpers.flush();
+        });
+    }
+
+    // ---------------------------------------------------------------------------------------------
+
     beforeEach( module( "syonet.model", function ( $provide, modelProvider ) {
         provider = modelProvider;
 
@@ -265,6 +282,8 @@ describe( "model", function () {
     // ---------------------------------------------------------------------------------------------
 
     describe( ".list()", function () {
+        shouldCustomizeRequestMethod( "list" );
+
         it( "should do GET request", function () {
             var promise;
             var data = [{
@@ -456,6 +475,8 @@ describe( "model", function () {
     // ---------------------------------------------------------------------------------------------
 
     describe( ".get()", function () {
+        shouldCustomizeRequestMethod( "get" );
+
         describe( "on a collection", function () {
             it( "should use ID only if it's passed", function () {
                 $httpBackend.expectGET( "/foo/bar" ).respond( {} );
@@ -520,6 +541,8 @@ describe( "model", function () {
     // ---------------------------------------------------------------------------------------------
 
     describe( ".create()", function () {
+        shouldCustomizeRequestMethod( "create" );
+
         describe( "when online", function () {
             describe( "on a collection", function () {
                 it( "should do POST request and return response", function () {
@@ -635,6 +658,8 @@ describe( "model", function () {
     // ---------------------------------------------------------------------------------------------
 
     describe( ".update()", function () {
+        shouldCustomizeRequestMethod( "update" );
+
         describe( "when online", function () {
             describe( "on an element", function () {
                 it( "should do POST request and return response", function () {
@@ -735,6 +760,8 @@ describe( "model", function () {
     // ---------------------------------------------------------------------------------------------
 
     describe( ".patch()", function () {
+        shouldCustomizeRequestMethod( "patch" );
+
         describe( "when online", function () {
             it( "should do PATCH request and return response", function () {
                 var promise;
@@ -888,6 +915,8 @@ describe( "model", function () {
     // ---------------------------------------------------------------------------------------------
 
     describe( ".remove()", function () {
+        shouldCustomizeRequestMethod( "remove" );
+
         describe( "when online", function () {
             it( "should do DELETE request and return response", function () {
                 var promise;
