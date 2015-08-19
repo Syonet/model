@@ -100,7 +100,7 @@ describe( "$modelRequest", function () {
         });
 
         promise = req( "/foo", "POST", data );
-        testHelpers.flush();
+        testHelpers.flush( true );
 
         return promise.then(function () {
             $httpBackend.expectPOST( "/foo", {
