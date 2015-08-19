@@ -21,7 +21,7 @@
     "license": "MIT",
     "scripts": {
         "test": "gulp",
-        "version": "git add -A dist",
+        "version": "npm test && git add -A dist",
         "bump": "npm version patch -m \"chore(release): bump to v%s\"",
         "bump-minor": "npm version minor -m \"chore(release): bump to v%s\"",
         "bump-major": "npm version major -m \"chore(release): bump to v%s\""
