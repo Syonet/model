@@ -471,6 +471,22 @@
          */
         provider.pluralizeCollections = false;
 
+        /**
+         * Mapping of Model methods to HTTP method.
+         * The configured values here will be used by their corresponding Model methods when
+         * triggering the HTTP requests.
+         *
+         * @type    {Object}
+         */
+        provider.methods = {
+            get:    "GET",
+            list:   "GET",
+            create: "POST",
+            update: "PUT",
+            patch:  "PATCH",
+            remove: "DELETE"
+        };
+
         provider.$get = function (
             $modelPromise,
             $modelConfig,
@@ -479,18 +495,47 @@
             $modelCache,
             modelSync
         ) {
+
             /**
-             * @param   {Model} model
+             * @param   {String} name
+             * @param   {Object} [options]
+             * @param   {String|String[]} [options.id="id"]  List of fields to take from the XHR
+             *                                               response and adopt as the primary key
+             *                                               of the returned array/object.
+             * @returns {Model}
+             * @constructor
+             */
+            function Model ( name, options ) {
+                if ( !( this instanceof Model ) ) {
+                    return new Model( name, options );
+                }
+
+                if ( !name ) {
+                    throw new Error( "Model name must be supplied" );
+                }
+
+                this.__defineGetter__( "db", function () {
+                    return $modelDB( name );
+                });
+
+                this._options = options;
+                this._path = {
+                    name: name
+                };
+            }
+
+            /**
              * @param   {String} method
              * @param   {*} [data]
              * @param   {Object} [options]
              * @returns {Promise}
              */
-            function createRequest ( model, method, data, options ) {
+            Model.prototype._request = function ( method, data, options ) {
                 var req;
+                var model = this;
                 var url = model.toURL();
 
-                options = angular.extend( {}, options, {
+                options = angular.extend( {}, options, model._options, {
                     auth: provider.auth(),
                     baseUrl: Model.base()
                 });
@@ -505,30 +550,7 @@
 
                     return $modelPromise.reject( err );
                 });
-            }
-
-            /**
-             * @param   {String} name
-             * @returns {Model}
-             * @constructor
-             */
-            function Model ( name ) {
-                if ( !( this instanceof Model ) ) {
-                    return new Model( name );
-                }
-
-                if ( !name ) {
-                    throw new Error( "Model name must be supplied" );
-                }
-
-                this.__defineGetter__( "db", function () {
-                    return $modelDB( name );
-                });
-
-                this._path = {
-                    name: name
-                };
-            }
+            };
 
             /**
              * Get/set the ID of the current collection/element.
@@ -546,7 +568,7 @@
                     return this._path.id;
                 }
 
-                other = new Model( this._path.name );
+                other = new Model( this._path.name, this._options );
                 other._parent = this._parent;
                 other._path.id = id;
 
@@ -554,14 +576,24 @@
             };
 
             /**
-             * Creates a new model  with the specified `name` inheriting from this one.
+             * Creates a new model with the specified `name` inheriting from this one.
              *
              * @param   {String} name
+             * @param   {Object} [options]  Model options. See {@link Model} for further info.
              * @returns {Model}
              */
-            Model.prototype.model = function ( name ) {
-                var other = new Model( name );
+            Model.prototype.model = function ( name, options ) {
+                var other, id;
+
+                if ( name instanceof Model ) {
+                    id = name._path.id;
+                    options = options || name._options;
+                    name = name._path.name;
+                }
+
+                other = new Model( name, options );
                 other._parent = this;
+                other._path.id = id;
 
                 return other;
             };
@@ -633,7 +665,7 @@
              * @returns {Promise}
              */
             Model.prototype.list = function ( collection, query, options ) {
-                var promise;
+                var promise, cachePromise, reqPromise;
                 var self = this;
 
                 self = invokeInCollection( self, collection, "list" );
@@ -642,41 +674,37 @@
                     query = collection;
                 }
 
-                promise = createRequest( self, "GET", query, options );
-                promise.$$cached = $modelCache.getAll( self ).then(function ( docs ) {
+                cachePromise = $modelCache.getAll( self ).then(function ( docs ) {
                     promise.emit( "cache", docs );
-                    return docs;
+
+                    // If the DB has ever been touched before, we'll return that value.
+                    // Otherwise, let's just make this promise eternal, so the request has a chance
+                    // to finish.
+                    return docs.touched ? docs : eternalPromise();
                 });
 
-                return promise.then(function ( docs ) {
-                    var cachePromise;
+                reqPromise = self._request(
+                    provider.methods.list,
+                    query,
+                    options
+                ).then(function ( docs ) {
+                    var cache;
                     promise.emit( "server", docs );
 
                     if ( !query || angular.equals( query, {} ) ) {
-                        cachePromise = $modelCache.remove( self );
+                        cache = $modelCache.remove( self );
                     } else {
-                        cachePromise = $modelPromise.when();
+                        cache = $modelPromise.when();
                     }
 
-                    return cachePromise.then(function () {
+                    return cache.then(function () {
                         return $modelCache.compact( self );
                     }).then(function () {
                         return $modelCache.set( self, docs );
                     });
-                }, function ( err ) {
-                    var reject = $modelPromise.reject;
-
-                    if ( err.status === 0 ) {
-                        return promise.$$cached.then(function ( docs ) {
-                            // If the DB has ever been touched before, we'll return whatever has
-                            // been returned by the cache. Otherwise, we'll need to reject the
-                            // promise with the offline error.
-                            return docs.touched ? docs : reject( err );
-                        });
-                    }
-
-                    return reject( err );
                 });
+
+                return promise = $modelPromise.race([ reqPromise, cachePromise ]);
             };
 
             /**
@@ -691,7 +719,7 @@
              * @returns {Promise}
              */
             Model.prototype.get = function ( id, options ) {
-                var promise;
+                var promise, reqPromise, cachePromise;
                 var self = this;
 
                 if ( !this.id() ) {
@@ -700,28 +728,29 @@
                     options = id;
                 }
 
-                promise = createRequest( self, "GET", null, options );
-                promise.$$cached = $modelCache.getOne( self ).then(function ( doc ) {
+                cachePromise = $modelCache.getOne( self ).then(function ( doc ) {
                     promise.emit( "cache", doc );
                     return doc;
+                }, function () {
+                    // As the document was not found, let's make this promise eternal, so the
+                    // request has a chance to finish.
+                    return eternalPromise();
                 });
 
-                return promise.then(function ( doc ) {
+                reqPromise = self._request(
+                    provider.methods.get,
+                    null,
+                    options
+                ).then(function ( doc ) {
                     // Use the ID from the model instead of the ID from PouchDB if we have one.
                     // This allows us to have a sane ID management.
                     doc._id = self.id() || doc._id;
 
                     promise.emit( "server", doc );
                     return $modelCache.set( self, doc );
-                }, function ( err ) {
-                    if ( err.status === 0 ) {
-                        return promise.$$cached.then( null, function ( e ) {
-                            return $modelPromise.reject( !e || e.name === "not_found" ? err : e );
-                        });
-                    }
-
-                    return $modelPromise.reject( err );
                 });
+
+                return promise = $modelPromise.race([ reqPromise, cachePromise ]);
             };
 
             /**
@@ -744,7 +773,7 @@
                     data = collection;
                 }
 
-                promise = createRequest( self, "POST", data, options );
+                promise = self._request( provider.methods.create, data, options );
                 promise.$$cached = $modelCache.set( self, data ).then(function ( docs ) {
                     promise.emit( "cache", docs );
                     return docs;
@@ -778,7 +807,7 @@
              * @param   {Object} [options]
              * @returns {Promise}
              */
-            Model.prototype.update = createUpdateFn( "set", "POST" );
+            Model.prototype.update = createUpdateFn( "set", "update" );
 
             /**
              * Updates the current collection/element.
@@ -788,7 +817,7 @@
              * @param   {Object} [options]
              * @returns {Promise}
              */
-            Model.prototype.patch = createUpdateFn( "extend", "PATCH" );
+            Model.prototype.patch = createUpdateFn( "extend", "patch" );
 
             /**
              * Removes the current collection/element.
@@ -799,7 +828,7 @@
              */
             Model.prototype.remove = function ( options ) {
                 var self = this;
-                var promise = createRequest( self, "DELETE", null, options );
+                var promise = self._request( provider.methods.remove, null, options );
 
                 // Find the needed docs and remove then from cache right away
                 promise.$$cached = $modelCache[ self.id() ? "getOne" : "getAll" ]( self );
@@ -858,7 +887,7 @@
              * Create and return a request function suitable for update/patch offline logic.
              *
              * @param   {String} cacheFn    The cache function to use. One of extend or set.
-             * @param   {String} method     The HTTP method to use. One of POST or PATCH.
+             * @param   {String} method     The method configuration to use.
              * @returns {Function}
              */
             function createUpdateFn ( cacheFn, method ) {
@@ -898,7 +927,7 @@
                         data._id = self.id();
                     }
 
-                    promise = createRequest( self, method, data, options );
+                    promise = self._request( provider.methods[ method ], data, options );
                     return promise.then(function ( docs ) {
                         if ( docs === SKIP_RESPONSE ) {
                             return $modelCache[ cacheFn ]( self, data ).then(function ( docs ) {
@@ -946,6 +975,16 @@
 
                 return self;
             }
+
+            /**
+             * Returns a promise that's never resolved.
+             * Useful for disallowing cache promises to resolve in .get() and .list() methods
+             *
+             * @returns {Promise}
+             */
+            function eternalPromise () {
+                return $modelPromise.defer().promise;
+            }
         };
 
         return provider;
@@ -963,6 +1002,70 @@
                 return /https?:/.test( url.substr( 0, index ) ) ? match : "/";
             });
         }
+    }
+}();
+!function () {
+    "use strict";
+
+    angular.module( "syonet.model" ).provider( "$modelPing", pingProvider );
+
+    function pingProvider () {
+        var provider = this;
+
+        /**
+         * Get/set the timeout (in ms) for pinging the target REST server
+         *
+         * @param   {Number}
+         */
+        provider.timeout = 5000;
+
+        /**
+         * Get/set the delay (in ms) for triggering another ping request.
+         *
+         * @param   {Number}
+         */
+        provider.pingDelay = 60000;
+
+        this.$get = ["$http", "$timeout", "$modelPromise", function ( $http, $timeout, $modelPromise ) {
+            var cache = {};
+
+            /**
+             * Clear the ping request for a given URL.
+             * Uses $timeout, however does not trigger a digest cycle.
+             */
+            function clear ( url ) {
+                $timeout(function () {
+                    delete cache[ url ];
+                }, provider.pingDelay, false );
+            }
+
+            /**
+             * Create a ping request and return its promise.
+             * If the given URL has already been pinged in the last <code>pingDelay</code>
+             * milliseconds, then the existing promise will be returned.
+             *
+             * @param   {String} url
+             * @param   {Boolean} [force]
+             * @returns {Promise}
+             */
+            return function ( url, force ) {
+                if ( cache[ url ] && !force ) {
+                    return cache[ url ];
+                }
+
+                return cache[ url ] = $http({
+                    method: "HEAD",
+                    url: url,
+                    timeout: provider.timeout
+                }).then(function () {
+                    clear( url );
+                    return $modelPromise.reject( new Error( "Succesfully pinged RESTful server" ) );
+                }, function ( err ) {
+                    clear( url );
+                    return err;
+                });
+            };
+        }];
     }
 }();
 !function () {
@@ -1000,20 +1103,6 @@
         var provider = this;
 
         /**
-         * Get/set the timeout (in ms) for pinging the target REST server
-         *
-         * @param   {Number}
-         */
-        provider.timeout = 5000;
-
-        /**
-         * Get/set the delay (in ms) for triggering another ping request.
-         *
-         * @param   {Number}
-         */
-        provider.pingDelay = 60000;
-
-        /**
          * The name of an alternative header that will contain the Content-Length, in case
          * the server provides it.
          * Useful when computing the length of a response which has Transfer-Encoding: chunked
@@ -1022,15 +1111,7 @@
          */
         provider.altContentLengthHeader = "X-Content-Length";
 
-        /**
-         * The name of the header that contains the ID fields in the response body.
-         * @type    {String}
-         */
-        provider.idFieldHeader = "X-Id-Field";
-
-        provider.$get = function ( $timeout, $http, $window, $modelPromise, $modelTemp ) {
-            var currPing;
-
+        provider.$get = function ( $http, $window, $modelPromise, $modelTemp, $modelPing ) {
             /**
              * Return a URL suitable for the ping request.
              * The returned value contains only the protocol and host, with no path.
@@ -1040,38 +1121,6 @@
              */
             function getPingUrl ( url ) {
                 return url.replace( /^(https?:\/\/)?(.*?)\/.+$/i, "$1$2/" );
-            }
-
-            /**
-             * Create a ping request and return its promise.
-             * If it's a
-             *
-             * @param   {String} url
-             * @param   {Boolean} [force]
-             * @returns {Promise}
-             */
-            function createPingRequest ( url, force ) {
-                return currPing = ( !force && currPing ) || $http({
-                    method: "HEAD",
-                    url: url,
-                    timeout: provider.timeout
-                }).then(function () {
-                    clearPingRequest();
-                    return $modelPromise.reject( new Error( "Succesfully pinged RESTful server" ) );
-                }, function ( err ) {
-                    clearPingRequest();
-                    return err;
-                });
-            }
-
-            /**
-             * Clear the current saved ping request.
-             * Uses $timeout, however does not trigger a digest cycle.
-             */
-            function clearPingRequest () {
-                $timeout(function () {
-                    currPing = null;
-                }, provider.pingDelay, false );
             }
 
             /**
@@ -1163,7 +1212,7 @@
                     params: safe ? data : null,
                     data: safe ? null : data,
                     headers: {},
-                    timeout: createPingRequest( pingUrl, options.force )
+                    timeout: $modelPing( pingUrl, options.force )
                 };
 
                 // FIXME This functionality has not been tested yet.
@@ -1173,7 +1222,7 @@
                 return updateTempRefs( config ).then(function ( config ) {
                     return $http( config ).then(function ( response ) {
                         var promise;
-                        response = applyIdField( response );
+                        response = applyIdField( response, options.id );
                         promise = $modelPromise.when( response );
 
                         // Set an persisted ID to the temporary ID posted
@@ -1265,16 +1314,16 @@
          * Applies the ID field into a HTTP response.
          *
          * @param   {Object} response
+         * @param   {String|String[]} [idFields]
          * @returns {Object|Object[]}
          */
-        function applyIdField ( response ) {
-            var idFields = response.headers( provider.idFieldHeader ) || "id";
+        function applyIdField ( response, idFields ) {
             var data = response.data;
             var isArray = angular.isArray( data );
+
+            idFields = idFields || "id";
+            idFields = angular.isArray( idFields ) ? idFields : [ idFields ];
             data = isArray ? data : [ data ];
-            idFields = idFields.split( "," ).map(function ( field ) {
-                return field.trim();
-            });
 
             data.forEach(function ( item ) {
                 var id = [];
@@ -1300,7 +1349,7 @@
 
     angular.module( "syonet.model" ).provider( "modelSync", modelSyncProvider );
 
-    function modelSyncProvider ( $modelRequestProvider ) {
+    function modelSyncProvider ( $modelPingProvider ) {
         var provider = this;
 
         provider.$get = function ( $interval, $document, $modelRequest, $modelDB, $modelPromise ) {
@@ -1451,7 +1500,7 @@
              *                           used is the ping delay.
              */
             sync.schedule = function ( delay ) {
-                delay = Math.max( delay || $modelRequestProvider.pingDelay );
+                delay = Math.max( delay || $modelPingProvider.pingDelay );
 
                 sync.schedule.cancel();
                 sync.$$schedule = $interval( sync, delay );
@@ -1542,7 +1591,7 @@
 
         return provider;
     }
-    modelSyncProvider.$inject = ["$modelRequestProvider"];
+    modelSyncProvider.$inject = ["$modelPingProvider"];
 }();
 !function () {
     "use strict";
@@ -1677,6 +1726,34 @@
             deferred.promise = makeEmitter( deferred.promise );
 
             return deferred;
+        };
+
+        /**
+         * Implementation of Promise.race().
+         *
+         * @see     https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/race
+         * @param   {Array} promises    List of values to either resolve/reject.
+         * @returns {Promise}
+         */
+        modelPromise.race = function ( promises ) {
+            var flag;
+            var deferred = modelPromise.defer();
+
+            promises.forEach(function ( promise ) {
+                modelPromise.when( promise ).then( resolve, reject );
+            });
+
+            return deferred.promise;
+
+            function resolve () {
+                !flag && deferred.resolve.apply( deferred, arguments );
+                flag = true;
+            }
+
+            function reject () {
+                !flag && deferred.reject.apply( deferred, arguments );
+                flag = true;
+            }
         };
 
         [ "when", "reject", "all" ].forEach( function ( method ) {
