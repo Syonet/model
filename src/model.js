@@ -45,7 +45,7 @@
             get:    "GET",
             list:   "GET",
             create: "POST",
-            update: "POST",
+            update: "PUT",
             patch:  "PATCH",
             remove: "DELETE"
         };

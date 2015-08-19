@@ -643,7 +643,7 @@ describe( "model", function () {
                         foo: "bar"
                     };
 
-                    $httpBackend.expectPOST( "/foo/bar" ).respond( data );
+                    $httpBackend.expectPUT( "/foo/bar" ).respond( data );
                     promise = model( "foo" ).id( "bar" ).update( data );
                     testHelpers.flush();
 
@@ -658,14 +658,14 @@ describe( "model", function () {
                         foo: "bar"
                     };
 
-                    $httpBackend.expectPOST( "/foo/bar" ).respond( data );
+                    $httpBackend.expectPUT( "/foo/bar" ).respond( data );
                     promise = foobar.update( data );
                     testHelpers.flush();
 
                     return promise.then(function () {
                         data.foo = "barbaz";
 
-                        $httpBackend.expectPOST( "/foo/bar" ).respond( data );
+                        $httpBackend.expectPUT( "/foo/bar" ).respond( data );
                         promise = foobar.update( data );
                         testHelpers.flush( true );
 
@@ -708,7 +708,7 @@ describe( "model", function () {
                 var foo = model( "foo" );
 
                 // Use status 0, so we're allowed to not give a **ck about the HTTP response :)
-                $httpBackend.expectPOST( "/foo" ).respond( 0 );
+                $httpBackend.expectPUT( "/foo" ).respond( 0 );
                 promise = foo.update( [{
                     foo: "foo",
                     bar: "bar"
@@ -903,7 +903,7 @@ describe( "model", function () {
                 var promise;
                 var foobar = model( "foo" ).id( "bar" );
 
-                $httpBackend.expectPOST( "/foo/bar" ).respond({
+                $httpBackend.expectPUT( "/foo/bar" ).respond({
                     id: "bar",
                     foo: "bar"
                 });
