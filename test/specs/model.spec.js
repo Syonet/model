@@ -529,6 +529,10 @@ describe( "model service", function () {
             it( "should reject if no cache is available", function () {
                 var promise;
 
+                inject(function ( $modelCache, $q ) {
+                    sinon.stub( $modelCache, "getOne" ).returns( $q.defer().promise );
+                });
+
                 $httpBackend.expectGET( "/foo/bar" ).respond( 0, null );
                 promise = model( "foo" ).id( "bar" ).get().finally( testHelpers.asyncDigest() );
 
