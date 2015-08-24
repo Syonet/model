@@ -5,7 +5,6 @@ describe( "PouchDB plugins", function () {
 
     beforeEach( module( "syonet.model" ) );
     beforeEach( inject(function ( $injector, _pouchDB_ ) {
-        testHelpers( $injector );
         db = _pouchDB_( "foo" );
     }));
 

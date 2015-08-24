@@ -12,9 +12,6 @@ describe( "$modelRequest", function () {
     }));
 
     beforeEach( inject(function ( $injector ) {
-        // Initialize test helpers
-        testHelpers( $injector );
-
         $http = $injector.get( "$http" );
         $httpBackend = $injector.get( "$httpBackend" );
         $modelTemp = $injector.get( "$modelTemp" );

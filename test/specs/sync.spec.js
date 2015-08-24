@@ -18,8 +18,6 @@ describe( "modelSync", function () {
     }));
 
     beforeEach( inject(function ( $injector ) {
-        testHelpers( $injector );
-
         $q = $injector.get( "$modelPromise" );
         $httpBackend = $injector.get( "$httpBackend" );
         $modelDB = $injector.get( "$modelDB" );

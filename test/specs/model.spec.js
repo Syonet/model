@@ -30,8 +30,6 @@ describe( "model", function () {
     }));
 
     beforeEach( inject(function ( $injector ) {
-        testHelpers( $injector );
-
         injector = $injector;
         $rootScope = $injector.get( "$rootScope" );
         $httpBackend = $injector.get( "$httpBackend" );
