@@ -3,13 +3,13 @@
 
     angular.module( "syonet.model" ).config( createPluginMethods );
 
-    function createPluginMethods ( pouchDBProvider, POUCHDB_DEFAULT_METHODS ) {
+    function createPluginMethods ( pouchDBProvider ) {
         var plugins = {
             patch: patch
         };
 
         PouchDB.plugin( plugins );
-        pouchDBProvider.methods = POUCHDB_DEFAULT_METHODS.concat( Object.keys( plugins ) );
+        // pouchDBProvider.methods = POUCHDB_DEFAULT_METHODS.concat( Object.keys( plugins ) );
 
         // -----------------------------------------------------------------------------------------
 

@@ -11,10 +11,12 @@ if ( !proto.bind ) {
     };
 }
 
-function testHelpers ( $injector ) {
+function testHelpers () {}
+angular.module( "syonet.model" ).run(function ( $injector ) {
     var $timeout = $injector.get( "$timeout" );
     var $httpBackend = $injector.get( "$httpBackend" );
     var $rootScope = $injector.get( "$rootScope" );
+    var $window = $injector.get( "$window" );
 
     // Ping request backend definition
     testHelpers.ping = $httpBackend.whenHEAD( "/" ).respond( 200 );
@@ -30,4 +32,9 @@ function testHelpers ( $injector ) {
     testHelpers.flush = function ( timeout ) {
         timeout ? setTimeout( $httpBackend.flush ) : $httpBackend.flush();
     };
-}
+
+    testHelpers.asyncDigest = function () {
+        var interval = $window.setInterval( $rootScope.$digest.bind( $rootScope ) );
+        return $window.clearInterval.bind( null, interval );
+    };
+});
