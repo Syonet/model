@@ -24,7 +24,7 @@ describe( "$modelRequest", function () {
         $httpBackend.verifyNoOutstandingRequest( false );
 
         localStorage.clear();
-        return $modelDB.clear();
+        return $modelDB.clear().finally( testHelpers.asyncDigest() );
     });
 
     it( "should return successful HTTP response", function () {
@@ -116,7 +116,7 @@ describe( "$modelRequest", function () {
             });
 
             return promise;
-        });
+        }).finally( testHelpers.asyncDigest() );
     });
 
     it( "should replace temporary IDs in URL", function () {
@@ -144,13 +144,13 @@ describe( "$modelRequest", function () {
             });
 
             return promise;
-        });
+        }).finally( testHelpers.asyncDigest() );
     });
 
     it( "should allow bypassing the HTTP request", function () {
         var promise = req( "/foo", "GET", null, {
             bypass: true
-        });
+        }).finally( testHelpers.asyncDigest() );
 
         testHelpers.digest( true );
         return expect( promise ).to.be.rejectedWith({

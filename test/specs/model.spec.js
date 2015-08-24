@@ -1,4 +1,4 @@
-describe( "model", function () {
+describe( "model service", function () {
     "use strict";
 
     var injector, $rootScope, $httpBackend, $modelDB, provider, model;
@@ -43,7 +43,7 @@ describe( "model", function () {
         $httpBackend.verifyNoOutstandingExpectation( false );
         $httpBackend.verifyNoOutstandingRequest( false );
 
-        return $modelDB.clear();
+        return $modelDB.clear().finally( testHelpers.asyncDigest() );
     });
 
     it( "should be created with provided path", function () {
@@ -60,7 +60,7 @@ describe( "model", function () {
         };
 
         $httpBackend.expectGET( "/foo/bar" ).respond( 200, data );
-        promise = model( "foo" ).get( "bar" );
+        promise = model( "foo" ).get( "bar" ).finally( testHelpers.asyncDigest() );
         testHelpers.flush();
 
         return expect( promise ).to.eventually.not.have.property( "_blah" );
@@ -87,7 +87,7 @@ describe( "model", function () {
                 status: 0,
                 data: null
             });
-        });
+        }).finally( testHelpers.asyncDigest() );
     });
 
     // ---------------------------------------------------------------------------------------------
@@ -244,7 +244,7 @@ describe( "model", function () {
         });
 
         it( "should resolve with null when no revision found", function () {
-            var promise = model( "foo" ).id( "bar" ).rev();
+            var promise = model( "foo" ).id( "bar" ).rev().finally( testHelpers.asyncDigest() );
             return expect( promise ).to.become( null );
         });
 
@@ -259,10 +259,11 @@ describe( "model", function () {
                 return foo.id( "bar" ).rev();
             }).then(function ( rev2 ) {
                 expect( rev ).to.equal( rev2 );
-            });
+            }).finally( testHelpers.asyncDigest() );
         });
 
         it( "should pass through errors except unexistent revisions", function () {
+            var promise;
             var err = new Error();
             var foobar = model( "foo" ).id( "bar" );
 
@@ -272,8 +273,10 @@ describe( "model", function () {
                 });
             });
 
-            testHelpers.digest( true );
-            return expect( foobar.rev() ).to.be.rejectedWith( err );
+            promise = foobar.rev().finally( testHelpers.asyncDigest() ).finally(function () {
+                foobar.db.get.restore();
+            });
+            return expect( promise ).to.be.rejectedWith( err );
         });
     });
 
@@ -291,7 +294,7 @@ describe( "model", function () {
 
             $httpBackend.expectGET( "/foo" ).respond( data );
 
-            promise = model( "foo" ).list();
+            promise = model( "foo" ).list().finally( testHelpers.asyncDigest() );
             testHelpers.flush();
 
             return expect( promise ).to.eventually.have.deep.property( "[0].foo", data.foo );
@@ -308,7 +311,7 @@ describe( "model", function () {
 
             promise = model( "foo" ).list({
                 bar: "baz"
-            });
+            }).finally( testHelpers.asyncDigest() );
             testHelpers.flush();
 
             return expect( promise ).to.eventually.have.deep.property( "[0].foo", data.foo );
@@ -361,7 +364,7 @@ describe( "model", function () {
                     expect( result ).to.have.length( 2 );
                     expect( result ).to.have.deep.property( "[0].id", 2 );
                     expect( result ).to.have.deep.property( "[1].id", 3 );
-                });
+                }).finally( testHelpers.asyncDigest() );
             });
 
             it( "should extend previous cached values on another request with query", function () {
@@ -396,7 +399,7 @@ describe( "model", function () {
 
                     // 4 rows because 1 is management data, other 3 are returned rows
                     return expect( promise ).to.eventually.have.property( "total_rows", 4 );
-                });
+                }).finally( testHelpers.asyncDigest() );
             });
 
             it( "should compact DB", function () {
@@ -410,7 +413,7 @@ describe( "model", function () {
 
                 return promise.then(function () {
                     expect( spy ).to.have.been.called;
-                });
+                }).finally( testHelpers.asyncDigest() );
             });
         });
 
@@ -462,7 +465,7 @@ describe( "model", function () {
                 $httpBackend.expectGET( "/foo/bar/baz?qux=quux" ).respond( 200, [ data ] );
                 promise = model( "foo" ).id( "bar" ).list( "baz", {
                     qux: "quux"
-                });
+                }).finally( testHelpers.asyncDigest() );
                 testHelpers.flush();
 
                 return expect( promise ).to.eventually.have.deep.property( "[0].foo", "bar" );
@@ -495,7 +498,7 @@ describe( "model", function () {
 
             $httpBackend.expectGET( "/foo/bar" ).respond( data );
 
-            promise = model( "foo" ).get( "bar" );
+            promise = model( "foo" ).get( "bar" ).finally( testHelpers.asyncDigest() );
             testHelpers.flush();
 
             return expect( promise ).to.eventually.have.property( "foo", data.foo );
@@ -514,21 +517,20 @@ describe( "model", function () {
                 });
 
                 $httpBackend.expectGET( "/foo/bar" ).respond( 0, null );
-                promise = foobar.get();
+                promise = foobar.get().finally( testHelpers.asyncDigest() );
 
                 testHelpers.flush();
-                testHelpers.digest( true );
                 return promise.then(function ( value ) {
                     expect( stub ).to.have.been.called;
                     expect( value ).to.eql( data );
-                });
+                }).finally( testHelpers.asyncDigest() );
             });
 
             it( "should reject if no cache is available", function () {
                 var promise;
 
                 $httpBackend.expectGET( "/foo/bar" ).respond( 0, null );
-                promise = model( "foo" ).id( "bar" ).get();
+                promise = model( "foo" ).id( "bar" ).get().finally( testHelpers.asyncDigest() );
 
                 testHelpers.flush( true );
                 return expect( promise ).to.be.rejected;
@@ -551,7 +553,7 @@ describe( "model", function () {
                     }];
 
                     $httpBackend.expectPOST( "/foo" ).respond( data );
-                    promise = model( "foo" ).create( data );
+                    promise = model( "foo" ).create( data ).finally( testHelpers.asyncDigest() );
                     testHelpers.flush();
 
                     return expect( promise ).to.eventually.have.deep.property(
@@ -568,7 +570,7 @@ describe( "model", function () {
                     foo.create( {} );
                     testHelpers.flush();
 
-                    allDocs = foo.db.allDocs();
+                    allDocs = foo.db.allDocs().finally( testHelpers.asyncDigest() );
                     return expect( allDocs ).to.eventually.have.property( "total_rows", 0 );
                 });
 
@@ -577,7 +579,7 @@ describe( "model", function () {
                     var foo = model( "foo" );
 
                     $httpBackend.expectPOST( "/foo" ).respond( 500, {} );
-                    promise = foo.create( {} );
+                    promise = foo.create( {} ).finally( testHelpers.asyncDigest() );
                     testHelpers.flush();
 
                     return expect( promise ).to.be.rejected;
@@ -609,7 +611,7 @@ describe( "model", function () {
                     expect( doc ).to.have.property( "method", "POST" );
                     expect( doc ).to.have.property( "data" ).and.have.property( "foo", "bar" );
                     expect( doc ).to.have.property( "options" );
-                });
+                }).finally( testHelpers.asyncDigest() );
             });
 
             it( "should return passed value", function () {
@@ -617,7 +619,7 @@ describe( "model", function () {
                 var data = {};
 
                 $httpBackend.expectPOST( "/foo" ).respond( 0 );
-                promise = model( "foo" ).create( data );
+                promise = model( "foo" ).create( data ).finally( testHelpers.asyncDigest() );
                 testHelpers.flush();
 
                 return expect( promise ).to.eventually.equal( data );
@@ -636,7 +638,7 @@ describe( "model", function () {
                         "total_rows",
                         2
                     );
-                });
+                }).finally( testHelpers.asyncDigest() );
             });
         });
 
@@ -667,7 +669,7 @@ describe( "model", function () {
                     };
 
                     $httpBackend.expectPUT( "/foo/bar" ).respond( data );
-                    promise = model( "foo" ).id( "bar" ).update( data );
+                    promise = model( "foo" ).id( "bar" ).update( data ).finally( testHelpers.asyncDigest() );
                     testHelpers.flush();
 
                     return expect( promise ).to.eventually.have.property( "foo", data.foo );
@@ -698,7 +700,7 @@ describe( "model", function () {
                             "foo",
                             "barbaz"
                         );
-                    });
+                    }).finally( testHelpers.asyncDigest() );
                 });
             });
         });
@@ -750,7 +752,7 @@ describe( "model", function () {
                     promise = injector.get( "$q" ).all( promise );
 
                     return promise;
-                });
+                }).finally( testHelpers.asyncDigest() );
             });
         });
     });
@@ -769,7 +771,7 @@ describe( "model", function () {
                 }];
 
                 $httpBackend.expectPATCH( "/foo" ).respond( data );
-                promise = model( "foo" ).patch( data );
+                promise = model( "foo" ).patch( data ).finally( testHelpers.asyncDigest() );
                 testHelpers.flush();
 
                 return expect( promise ).to.eventually.have.deep.property(
@@ -799,7 +801,7 @@ describe( "model", function () {
                             "baz",
                             "qux"
                         );
-                    });
+                    }).finally( testHelpers.asyncDigest() );
                 });
             });
 
@@ -850,7 +852,7 @@ describe( "model", function () {
                         promise = injector.get( "$q" ).all( promise );
 
                         return promise;
-                    });
+                    }).finally( testHelpers.asyncDigest() );
                 });
             });
         });
@@ -880,7 +882,7 @@ describe( "model", function () {
                     expect( doc ).to.have.property( "method", "PATCH" );
                     expect( doc ).to.have.property( "data" ).and.eql( data );
                     expect( doc ).to.have.property( "options" );
-                });
+                }).finally( testHelpers.asyncDigest() );
             });
 
             // -------------------------------------------------------------------------------------
@@ -904,7 +906,7 @@ describe( "model", function () {
                     }).then(function () {
                         promise = foobar.db.get( "bar" );
                         return expect( promise ).to.eventually.have.property( "foo", "barbaz" );
-                    });
+                    }).finally( testHelpers.asyncDigest() );
                 });
             });
         });
@@ -920,7 +922,7 @@ describe( "model", function () {
                 var promise;
                 $httpBackend.expectDELETE( "/foo" ).respond( 204 );
 
-                promise = model( "foo" ).remove();
+                promise = model( "foo" ).remove().finally( testHelpers.asyncDigest() );
                 testHelpers.flush();
 
                 return expect( promise ).to.eventually.be.null;
@@ -945,7 +947,7 @@ describe( "model", function () {
                     return promise;
                 }).then(function () {
                     return expect( foobar.db.get( "bar" ) ).to.be.rejected;
-                });
+                }).finally( testHelpers.asyncDigest() );
             });
         });
 
@@ -970,7 +972,7 @@ describe( "model", function () {
                     expect( doc ).to.have.property( "method", "DELETE" );
                     expect( doc ).to.have.property( "data", null );
                     expect( doc ).to.have.property( "options" );
-                });
+                }).finally( testHelpers.asyncDigest() );
             });
 
             it( "should wipe previous cache", function () {
@@ -995,7 +997,7 @@ describe( "model", function () {
                 }).then(function () {
                     promise = foo.db.get( "bar" );
                     return expect( promise ).to.be.rejected;
-                });
+                }).finally( testHelpers.asyncDigest() );
             });
         });
     });

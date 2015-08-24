@@ -1,4 +1,4 @@
-describe.only( "$modelCache", function () {
+describe( "$modelCache", function () {
     "use strict";
 
     var db, model, cache, $rootScope, $window;
