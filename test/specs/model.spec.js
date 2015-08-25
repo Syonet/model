@@ -519,24 +519,27 @@ describe( "model service", function () {
                 $httpBackend.expectGET( "/foo/bar" ).respond( 0, null );
                 promise = foobar.get().finally( testHelpers.asyncDigest() );
 
-                testHelpers.flush();
+                testHelpers.flush( true );
                 return promise.then(function ( value ) {
                     expect( stub ).to.have.been.called;
                     expect( value ).to.eql( data );
-                }).finally( testHelpers.asyncDigest() );
+                    stub.restore();
+                });
             });
 
             it( "should reject if no cache is available", function () {
-                var promise;
+                var promise, stub;
 
                 inject(function ( $modelCache, $q ) {
-                    sinon.stub( $modelCache, "getOne" ).returns( $q.defer().promise );
+                    stub = sinon.stub( $modelCache, "getOne" ).returns( $q.reject() );
                 });
 
                 $httpBackend.expectGET( "/foo/bar" ).respond( 0, null );
                 promise = model( "foo" ).id( "bar" ).get().finally( testHelpers.asyncDigest() );
 
                 testHelpers.flush( true );
+                stub.restore();
+
                 return expect( promise ).to.be.rejected;
             });
         });

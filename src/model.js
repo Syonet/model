@@ -243,7 +243,14 @@
                     // If the DB has ever been touched before, we'll return that value.
                     // Otherwise, let's just make this promise eternal, so the request has a chance
                     // to finish.
-                    return docs.touched ? docs : eternalPromise();
+                    cachePromise.failed = !docs.touched;
+                    if ( docs.touched ) {
+                        return docs;
+                    }
+
+                    return reqPromise.failed ? $modelPromise.reject({
+                        status: 0
+                    }) : eternalPromise();
                 });
 
                 reqPromise = self._request(
@@ -265,6 +272,13 @@
                     }).then(function () {
                         return $modelCache.set( self, docs );
                     });
+                }, function ( err ) {
+                    if ( err.status !== 0 ) {
+                        return $modelPromise.reject( err );
+                    }
+
+                    reqPromise.failed = true;
+                    return cachePromise.failed ? $modelPromise.reject( err ) : cachePromise;
                 });
 
                 return promise = $modelPromise.race([ reqPromise, cachePromise ]);
@@ -294,10 +308,20 @@
                 cachePromise = $modelCache.getOne( self ).then(function ( doc ) {
                     promise.emit( "cache", doc );
                     return doc;
-                }, function () {
-                    // As the document was not found, let's make this promise eternal, so the
-                    // request has a chance to finish.
-                    return eternalPromise();
+                }, function ( err ) {
+                    // If the document was not found and the request has not finished yet, let's
+                    // make this promise eternal, so the request has a chance to finish.
+                    // If the document was not found and the request has finished, then we should
+                    // assume this is an HTTP status 0.
+                    // Other errors should be thrown.
+                    if ( err != null && err.message !== "missing" ) {
+                        return $modelPromise.reject( err );
+                    }
+
+                    cachePromise.failed = true;
+                    return reqPromise.failed ? $modelPromise.reject({
+                        status: 0
+                    }) : eternalPromise();
                 });
 
                 reqPromise = self._request(
@@ -311,6 +335,13 @@
 
                     promise.emit( "server", doc );
                     return $modelCache.set( self, doc );
+                }, function ( err ) {
+                    if ( err.status !== 0 ) {
+                        return $modelPromise.reject( err );
+                    }
+
+                    reqPromise.failed = true;
+                    return cachePromise.failed ? $modelPromise.reject( err ) : cachePromise;
                 });
 
                 return promise = $modelPromise.race([ reqPromise, cachePromise ]);
