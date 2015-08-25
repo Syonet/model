@@ -35,7 +35,7 @@ describe( "$modelDB", function () {
                 expect( spy ).to.be.calledWith( "modelDB.foo" );
                 expect( spy ).to.be.calledWith( "modelDB.bar" );
                 expect( spy ).to.be.calledWith( "modelDB.__updates" );
-            });
+            }).finally( testHelpers.asyncDigest() );
         });
     });
 
@@ -46,7 +46,7 @@ describe( "$modelDB", function () {
             var promise;
 
             provider.dbNamePrefix = "model";
-            promise = model( "foo" ).db.info();
+            promise = model( "foo" ).db.info().finally( testHelpers.asyncDigest() );
 
             return expect( promise ).to.eventually.have.property( "db_name", "model.foo" );
         });

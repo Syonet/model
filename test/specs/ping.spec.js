@@ -11,9 +11,6 @@ describe( "$modelPing", function () {
     }));
 
     beforeEach( inject(function ( $injector ) {
-        // Initialize test helpers
-        testHelpers( $injector );
-
         $http = $injector.get( "$http" );
         $httpBackend = $injector.get( "$httpBackend" );
         ping = $injector.get( "$modelPing" );

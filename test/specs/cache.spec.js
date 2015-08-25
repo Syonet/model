@@ -1,26 +1,30 @@
 describe( "$modelCache", function () {
     "use strict";
 
-    var db, model, cache;
+    var db, model, cache, $rootScope, $window;
     beforeEach( module( "syonet.model" ) );
     beforeEach( inject(function ( $injector ) {
         model = $injector.get( "model" );
         cache = $injector.get( "$modelCache" );
         db = $injector.get( "$modelDB" );
+
+        $rootScope = $injector.get( "$rootScope" );
+        $window = $injector.get( "$window" );
     }));
 
     afterEach(function () {
-        return db.clear();
+        return db.clear().finally( testHelpers.asyncDigest() );
     });
 
     describe( ".set()", function () {
         it( "should create documents when they don't exist", function () {
             var foo = model( "foo" );
+
             return cache.set( foo, {
                 _id: "foo"
             }).then(function () {
                 return expect( foo.db.get( "foo" ) ).to.be.fulfilled;
-            });
+            }).finally( testHelpers.asyncDigest() );
         });
 
         it( "should update existing documents", function () {
@@ -34,7 +38,7 @@ describe( "$modelCache", function () {
                 return cache.set( foo, data );
             }).then(function () {
                 return expect( foo.db.get( "foo" ) ).to.eventually.have.property( "bar", "baz" );
-            });
+            }).finally( testHelpers.asyncDigest() );
         });
 
         it( "should do bulk operations", function () {
@@ -47,7 +51,7 @@ describe( "$modelCache", function () {
                 return expect( foo.db.get( "foo" ) ).to.be.fulfilled;
             }).then(function () {
                 return expect( foo.db.get( "bar" ) ).to.be.fulfilled;
-            });
+            }).finally( testHelpers.asyncDigest() );
         });
 
         it( "should return the updated documents", function () {
@@ -57,10 +61,9 @@ describe( "$modelCache", function () {
                 foo: "bar"
             }];
 
-            return expect( cache.set( foo, data ) ).to.eventually.have.deep.property(
-                "[0].foo",
-                "bar"
-            );
+            return cache.set( foo, data ).then(function ( docs ) {
+                expect( docs ).to.have.deep.property( "[0].foo", "bar" );
+            }).finally( testHelpers.asyncDigest() );
         });
 
         it( "should store parents", function () {
@@ -74,7 +77,7 @@ describe( "$modelCache", function () {
                         $parents: {}
                     }
                 });
-            });
+            }).finally( testHelpers.asyncDigest() );
         });
     });
 
@@ -97,7 +100,7 @@ describe( "$modelCache", function () {
             }).then(function ( doc ) {
                 expect( doc ).to.have.property( "bar", "barbaz" );
                 expect( doc ).to.have.property( "baz", true );
-            });
+            }).finally( testHelpers.asyncDigest() );
         });
 
         it( "should create documents when they don't exist", function () {
@@ -106,7 +109,7 @@ describe( "$modelCache", function () {
                 _id: "foo"
             }).then(function () {
                 return expect( foo.db.get( "foo" ) ).to.be.fulfilled;
-            });
+            }).finally( testHelpers.asyncDigest() );
         });
 
         it( "should return extended data", function () {
@@ -123,7 +126,7 @@ describe( "$modelCache", function () {
                     "bar",
                     "barbaz"
                 );
-            });
+            }).finally( testHelpers.asyncDigest() );
         });
     });
 
@@ -143,7 +146,7 @@ describe( "$modelCache", function () {
             }).then(function () {
                 // 1 item is the management data, never removed
                 return expect( foo.db.allDocs() ).to.eventually.have.property( "total_rows", 2 );
-            });
+            }).finally( testHelpers.asyncDigest() );
         });
 
         it( "should remove all documents from DB if no data passed", function () {
@@ -155,7 +158,7 @@ describe( "$modelCache", function () {
             }).then(function () {
                 // 1 item is the management data, never removed
                 return expect( foo.db.allDocs() ).to.eventually.have.property( "total_rows", 1 );
-            });
+            }).finally( testHelpers.asyncDigest() );
         });
     });
 
@@ -169,7 +172,7 @@ describe( "$modelCache", function () {
                 foo: "bar"
             }).then( function () {
                 return expect( cache.getOne( foobar ) ).to.eventually.have.property( "foo", "bar" );
-            });
+            }).finally( testHelpers.asyncDigest() );
         });
 
         it( "should return cached document with same parents", function () {
@@ -184,7 +187,7 @@ describe( "$modelCache", function () {
                         $parents: {}
                     }
                 });
-            });
+            }).finally( testHelpers.asyncDigest() );
         });
 
         it( "should reject whwen no document with same parents exist", function () {
@@ -194,7 +197,7 @@ describe( "$modelCache", function () {
                 _id: "qux"
             }).then(function () {
                 return expect( cache.getOne( m2 ) ).to.be.rejected;
-            });
+            }).finally( testHelpers.asyncDigest() );
         });
     });
 
@@ -215,7 +218,7 @@ describe( "$modelCache", function () {
                 _id: "baz"
             }]).then(function () {
                 return expect( cache.getAll( foo ) ).to.eventually.have.length( 2 );
-            });
+            }).finally( testHelpers.asyncDigest() );
         });
 
         it( "should not return protected documents", function () {
@@ -226,7 +229,7 @@ describe( "$modelCache", function () {
 
             return cache.compact( foo ).then(function () {
                 return expect( cache.getAll( foo ) ).to.eventually.have.length( 0 );
-            });
+            }).finally( testHelpers.asyncDigest() );
         });
 
         it( "should return cached documents with same parents", function () {
@@ -243,7 +246,7 @@ describe( "$modelCache", function () {
             }).then(function () {
                 var promise = cache.getAll( baz );
                 return expect( promise ).to.eventually.have.length( 2 );
-            });
+            }).finally( testHelpers.asyncDigest() );
         });
 
         it( "should return proper 'touched' value for different parents", function () {
@@ -253,7 +256,7 @@ describe( "$modelCache", function () {
             }]).then(function () {
                 var promise = cache.getAll( model( "baz" ) );
                 return expect( promise ).to.eventually.have.property( "touched", false );
-            });
+            }).finally( testHelpers.asyncDigest() );
         });
     });
 
@@ -278,7 +281,7 @@ describe( "$modelCache", function () {
                 return cache.compact( foo );
             }).then(function () {
                 expect( spy ).to.have.been.calledOnce;
-            });
+            }).finally( testHelpers.asyncDigest() );
         });
 
         it( "should compact each 1000 updates to the DB", function () {
@@ -291,7 +294,7 @@ describe( "$modelCache", function () {
 
             return cache.compact( foo ).then(function () {
                 expect( spy ).to.not.have.been.called;
-            });
+            }).finally( testHelpers.asyncDigest() );
         });
     });
 });

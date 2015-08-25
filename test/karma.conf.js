@@ -5,8 +5,6 @@ module.exports = function ( config ) {
         basePath: "..",
         frameworks: [ "mocha", "chai", "chai-as-promised", "sinon-chai" ],
         files: [
-            "test/init.js",
-
             // Production deps
             "libs/pouchdb/dist/pouchdb.js",
             "libs/angular/angular.js",
@@ -18,6 +16,9 @@ module.exports = function ( config ) {
             // Sources
             "src/module.js",
             "src/**/*.js",
+
+            // Test initialization code
+            "test/init.js",
 
             // Test specs
             "test/specs/**/*.js"

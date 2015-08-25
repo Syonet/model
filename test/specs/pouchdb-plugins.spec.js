@@ -5,12 +5,11 @@ describe( "PouchDB plugins", function () {
 
     beforeEach( module( "syonet.model" ) );
     beforeEach( inject(function ( $injector, _pouchDB_ ) {
-        testHelpers( $injector );
         db = _pouchDB_( "foo" );
     }));
 
     afterEach(function () {
-        return db.destroy();
+        return db.destroy().finally( testHelpers.asyncDigest() );
     });
 
     describe( ".patch()", function () {
@@ -23,11 +22,12 @@ describe( "PouchDB plugins", function () {
                 }, "foobar" );
             }).then(function () {
                 return expect( db.get( "foobar" ) ).to.eventually.have.property( "foo", "barbaz" );
-            });
+            }).finally( testHelpers.asyncDigest() );
         });
 
         it( "should reject if document doesn't exist", function () {
-            return expect( db.patch( {}, "xyz" ) ).to.be.rejected;
+            var promise = db.patch( {}, "xyz" ).finally( testHelpers.asyncDigest() );
+            return expect( promise ).to.be.rejected;
         });
     });
 });

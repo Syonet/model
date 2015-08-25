@@ -18,8 +18,6 @@ describe( "modelSync", function () {
     }));
 
     beforeEach( inject(function ( $injector ) {
-        testHelpers( $injector );
-
         $q = $injector.get( "$modelPromise" );
         $httpBackend = $injector.get( "$httpBackend" );
         $modelDB = $injector.get( "$modelDB" );
@@ -30,7 +28,7 @@ describe( "modelSync", function () {
 
     afterEach(function () {
         localStorage.clear();
-        return $modelDB.clear();
+        return $modelDB.clear().finally( testHelpers.asyncDigest() );
     });
 
     it( "should have an event emitter interface", function () {
@@ -50,7 +48,7 @@ describe( "modelSync", function () {
             expect( req ).to.have.been.calledWith( "/", "POST" );
             expect( req ).to.have.been.calledWith( "/foo", "PATCH" );
             expect( spy ).to.have.been.calledWith( "success" );
-        });
+        }).finally( testHelpers.asyncDigest() );
     });
 
     it( "should retrigger with provided options", function () {
@@ -64,7 +62,7 @@ describe( "modelSync", function () {
         testHelpers.digest( true );
         return sync.store( "/", "POST", null, options ).then( sync ).then(function () {
             expect( req ).to.have.been.calledWith( "/", "POST", null, options );
-        });
+        }).finally( testHelpers.asyncDigest() );
     });
 
     it( "should trigger error event with the promise rejection cause", function () {
@@ -80,7 +78,7 @@ describe( "modelSync", function () {
         testHelpers.digest( true );
         return $q.all( stores ).then( sync ).catch( sinon.spy() ).then(function () {
             expect( spy ).to.have.been.calledWith( "error", "foo" );
-        });
+        }).finally( testHelpers.asyncDigest() );
     });
 
     it( "should not allow two synchronizations to overlap", function () {
@@ -92,7 +90,7 @@ describe( "modelSync", function () {
         var spy = sinon.spy( sync, "emit" );
         return sync().then(function () {
             expect( spy ).to.not.have.been.called;
-        });
+        }).finally( testHelpers.asyncDigest() );
     });
 
     it( "should have a default scheduled synchronization interval", function () {
@@ -115,7 +113,7 @@ describe( "modelSync", function () {
             return sync.store( "/foo", "PATCH" );
         }).then( sync ).catch( sinon.spy() ).then(function () {
             return expect( db.allDocs() ).to.eventually.have.property( "total_rows", 1 );
-        });
+        }).finally( testHelpers.asyncDigest() );
     });
 
     it( "should execute requests in series", function () {
@@ -129,7 +127,7 @@ describe( "modelSync", function () {
             var req2 = req.withArgs( "/foo", "DELETE" );
 
             expect( req1 ).to.have.been.calledBefore( req2 );
-        });
+        }).finally( testHelpers.asyncDigest() );
     });
 
     // ---------------------------------------------------------------------------------------------
@@ -173,7 +171,7 @@ describe( "modelSync", function () {
             }).then(function ( docs ) {
                 expect( docs.rows ).to.have.deep.property( "[0].doc.foo", "bar" );
                 expect( docs.rows ).to.have.deep.property( "[1].doc.foo", "barbaz" );
-            });
+            }).finally( testHelpers.asyncDigest() );
         });
 
         it( "should remove items with no previous version", function () {
@@ -198,7 +196,7 @@ describe( "modelSync", function () {
 
                 // 1 item is the management data, never removed
                 return expect( promise ).to.eventually.have.property( "total_rows", 1 );
-            });
+            }).finally( testHelpers.asyncDigest() );
         });
     });
 
@@ -243,7 +241,7 @@ describe( "modelSync", function () {
 
                 expect( doc.model ).to.equal( "/" );
                 expect( doc.method ).to.equal( "GET" );
-            });
+            }).finally( testHelpers.asyncDigest() );
         });
     });
 });
