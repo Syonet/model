@@ -520,6 +520,20 @@ describe( "model service", function () {
 
         // -----------------------------------------------------------------------------------------
 
+        describe( "if request fails", function () {
+            it( "should reject with the request error", function () {
+                var promise;
+
+                $httpBackend.expectGET( "/foo/bar" ).respond( 500 );
+                promise = model( "foo" ).id( "bar" ).get().finally( testHelpers.asyncDigest() );
+
+                testHelpers.flush( true );
+                return expect( promise ).to.be.rejected;
+            });
+        });
+
+        // -----------------------------------------------------------------------------------------
+
         describe( "when offline", function () {
             it( "should return cached value when it exists", function () {
                 var stub, promise;
