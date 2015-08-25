@@ -30,6 +30,8 @@ describe( "model service", function () {
     }));
 
     beforeEach( inject(function ( $injector ) {
+        this.timeout( 2300 );
+
         injector = $injector;
         $rootScope = $injector.get( "$rootScope" );
         $httpBackend = $injector.get( "$httpBackend" );
@@ -417,20 +419,32 @@ describe( "model service", function () {
             });
         });
 
+        // -----------------------------------------------------------------------------------------
+
+        describe( "if request fails", function () {
+            it( "should reject with the request error", function () {
+                var promise;
+
+                $httpBackend.expectGET( "/foo" ).respond( 500 );
+                promise = model( "foo" ).list().finally( testHelpers.asyncDigest() );
+
+                testHelpers.flush( true );
+                return expect( promise ).to.be.rejected;
+            });
+        });
+
+        // -----------------------------------------------------------------------------------------
+
         describe( "when offline", function () {
             it( "should return cached array", inject(function ( $q ) {
-                var promise;
-                var data = { foo: "bar" };
+                var stub, promise;
+                var data = [{ foo: "bar" }];
                 var foo = model( "foo" );
-                var stub = sinon.stub( foo.db, "allDocs" ).withArgs( sinon.match({
-                    include_docs: true
-                }));
 
-                stub.returns( $q.when({
-                    rows: [{
-                        doc: data
-                    }]
-                }));
+                data.touched = true;
+                inject(function ( $modelCache ) {
+                    stub = sinon.stub( $modelCache, "getAll" ).returns( $q.when( data ) );
+                });
 
                 $httpBackend.expectGET( "/foo" ).respond( 0, null );
                 promise = foo.list();
@@ -438,7 +452,7 @@ describe( "model service", function () {
                 testHelpers.flush();
                 return promise.then(function ( value ) {
                     expect( stub ).to.have.been.called;
-                    expect( value ).to.eql([ data ]);
+                    expect( value[ 0 ] ).to.eql( data[ 0 ] );
                 });
             }));
         });
@@ -506,6 +520,28 @@ describe( "model service", function () {
 
         // -----------------------------------------------------------------------------------------
 
+        describe( "if request fails", function () {
+            it( "should reject with the request error", function () {
+                var stub, promise;
+
+                // This should not be needed, but Travis is complaining that the promise is being
+                // fulfilled: https://travis-ci.org/Syonet/model/builds/77185907#L323
+                inject(function ( $q, $modelCache ) {
+                    stub = sinon.stub( $modelCache, "getOne" ).returns( $q.defer().promise );
+                });
+
+                $httpBackend.expectGET( "/foo/bar" ).respond( 500 );
+                promise = model( "foo" ).id( "bar" ).get().finally( testHelpers.asyncDigest() );
+
+                testHelpers.flush( true );
+                stub.restore();
+
+                return expect( promise ).to.be.rejected;
+            });
+        });
+
+        // -----------------------------------------------------------------------------------------
+
         describe( "when offline", function () {
             it( "should return cached value when it exists", function () {
                 var stub, promise;
@@ -519,24 +555,27 @@ describe( "model service", function () {
                 $httpBackend.expectGET( "/foo/bar" ).respond( 0, null );
                 promise = foobar.get().finally( testHelpers.asyncDigest() );
 
-                testHelpers.flush();
+                testHelpers.flush( true );
                 return promise.then(function ( value ) {
                     expect( stub ).to.have.been.called;
                     expect( value ).to.eql( data );
-                }).finally( testHelpers.asyncDigest() );
+                    stub.restore();
+                });
             });
 
             it( "should reject if no cache is available", function () {
-                var promise;
+                var promise, stub;
 
                 inject(function ( $modelCache, $q ) {
-                    sinon.stub( $modelCache, "getOne" ).returns( $q.defer().promise );
+                    stub = sinon.stub( $modelCache, "getOne" ).returns( $q.reject() );
                 });
 
                 $httpBackend.expectGET( "/foo/bar" ).respond( 0, null );
                 promise = model( "foo" ).id( "bar" ).get().finally( testHelpers.asyncDigest() );
 
                 testHelpers.flush( true );
+                stub.restore();
+
                 return expect( promise ).to.be.rejected;
             });
         });
