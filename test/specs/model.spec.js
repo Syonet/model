@@ -419,20 +419,32 @@ describe( "model service", function () {
             });
         });
 
+        // -----------------------------------------------------------------------------------------
+
+        describe( "if request fails", function () {
+            it( "should reject with the request error", function () {
+                var promise;
+
+                $httpBackend.expectGET( "/foo" ).respond( 500 );
+                promise = model( "foo" ).list().finally( testHelpers.asyncDigest() );
+
+                testHelpers.flush( true );
+                return expect( promise ).to.be.rejected;
+            });
+        });
+
+        // -----------------------------------------------------------------------------------------
+
         describe( "when offline", function () {
             it( "should return cached array", inject(function ( $q ) {
-                var promise;
-                var data = { foo: "bar" };
+                var stub, promise;
+                var data = [{ foo: "bar" }];
                 var foo = model( "foo" );
-                var stub = sinon.stub( foo.db, "allDocs" ).withArgs( sinon.match({
-                    include_docs: true
-                }));
 
-                stub.returns( $q.when({
-                    rows: [{
-                        doc: data
-                    }]
-                }));
+                data.touched = true;
+                inject(function ( $modelCache ) {
+                    stub = sinon.stub( $modelCache, "getAll" ).returns( $q.when( data ) );
+                });
 
                 $httpBackend.expectGET( "/foo" ).respond( 0, null );
                 promise = foo.list();
@@ -440,7 +452,7 @@ describe( "model service", function () {
                 testHelpers.flush();
                 return promise.then(function ( value ) {
                     expect( stub ).to.have.been.called;
-                    expect( value ).to.eql([ data ]);
+                    expect( value[ 0 ] ).to.eql( data[ 0 ] );
                 });
             }));
         });
