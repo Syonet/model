@@ -522,12 +522,20 @@ describe( "model service", function () {
 
         describe( "if request fails", function () {
             it( "should reject with the request error", function () {
-                var promise;
+                var stub, promise;
+
+                // This should not be needed, but Travis is complaining that the promise is being
+                // fulfilled: https://travis-ci.org/Syonet/model/builds/77185907#L323
+                inject(function ( $q, $modelCache ) {
+                    stub = sinon.stub( $modelCache, "getOne" ).returns( $q.defer().promise );
+                });
 
                 $httpBackend.expectGET( "/foo/bar" ).respond( 500 );
                 promise = model( "foo" ).id( "bar" ).get().finally( testHelpers.asyncDigest() );
 
                 testHelpers.flush( true );
+                stub.restore();
+
                 return expect( promise ).to.be.rejected;
             });
         });
