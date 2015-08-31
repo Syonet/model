@@ -30,8 +30,6 @@ describe( "model service", function () {
     }));
 
     beforeEach( inject(function ( $injector ) {
-        this.timeout( 2300 );
-
         injector = $injector;
         $rootScope = $injector.get( "$rootScope" );
         $httpBackend = $injector.get( "$httpBackend" );
