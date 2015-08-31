@@ -436,25 +436,27 @@ describe( "model service", function () {
         // -----------------------------------------------------------------------------------------
 
         describe( "when offline", function () {
-            it( "should return cached array", inject(function ( $q ) {
+            it( "should return cached array", function () {
                 var stub, promise;
                 var data = [{ foo: "bar" }];
                 var foo = model( "foo" );
 
                 data.touched = true;
-                inject(function ( $modelCache ) {
+                inject(function ( $q, $modelCache ) {
                     stub = sinon.stub( $modelCache, "getAll" ).returns( $q.when( data ) );
                 });
 
                 $httpBackend.expectGET( "/foo" ).respond( 0, null );
-                promise = foo.list();
+                promise = foo.list().finally( testHelpers.asyncDigest() );
 
-                testHelpers.flush();
+                testHelpers.flush( true );
                 return promise.then(function ( value ) {
                     expect( stub ).to.have.been.called;
                     expect( value[ 0 ] ).to.eql( data[ 0 ] );
+
+                    stub.restore();
                 });
-            }));
+            });
         });
 
         // -----------------------------------------------------------------------------------------
